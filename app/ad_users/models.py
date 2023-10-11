@@ -1,8 +1,11 @@
-from datetime import date
+from datetime import datetime
+from typing import Optional
+
 from sqlalchemy import Date, ForeignKey
 from sqlalchemy.orm import mapped_column, Mapped
 
-from app.database import Base
+
+from app.database import Base, timestamp
 
 
 class AdUsers(Base):
@@ -13,12 +16,13 @@ class AdUsers(Base):
     first_name: Mapped[str]
     middle_name: Mapped[str]
     last_name: Mapped[str]
-    login_name: Mapped[str]
+    login_name: Mapped[Optional[str]]
     department: Mapped[str]
     job_title: Mapped[str]
-    location: Mapped[str]
     tabel_number: Mapped[int]
-    creation_data: Mapped[date] = mapped_column(Date)
+    action_data: Mapped[Optional[timestamp]] = mapped_column(default=datetime.utcnow())
+    action: Mapped[str]
+
 
 
     def __str__(self):
