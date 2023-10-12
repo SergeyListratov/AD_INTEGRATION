@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, mapped_column
 from app.config import settings
 
-from psycopg2.errorcodes import UNIQUE_VIOLATION
 
 from typing_extensions import Annotated
 

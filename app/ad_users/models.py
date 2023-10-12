@@ -12,7 +12,7 @@ class AdUsers(Base):
     __tablename__ = "ad_users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    api_user_id: Mapped[str] = mapped_column(ForeignKey('api_users.id'))
+    api_user_id: Mapped[str]
     first_name: Mapped[str]
     middle_name: Mapped[str]
     last_name: Mapped[str]
@@ -21,9 +21,9 @@ class AdUsers(Base):
     job_title: Mapped[str]
     tabel_number: Mapped[int]
     action_data: Mapped[Optional[timestamp]] = mapped_column(default=datetime.utcnow())
+    # action_data: Mapped[Date] = mapped_column(Date)
     action: Mapped[str]
-
-
 
     def __str__(self):
         return f"User AD {self.login_name}"
+

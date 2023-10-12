@@ -22,7 +22,7 @@ def get_password_hash(password):
 
 def create_access_token(date: dict) -> str:
     to_encode = date.copy()
-    expire = datetime.utcnow() + timedelta(minutes=3)
+    expire = datetime.utcnow() + timedelta(minutes=30)
     to_encode.update({'exp': expire})
     encoded_jwt = jwt.encode(
         to_encode, settings.SECRET_KEY, settings.ALG
@@ -30,9 +30,10 @@ def create_access_token(date: dict) -> str:
     return encoded_jwt
 
 
-async def authenticate_user(login: str, password: str):
+async def authenticate_api_user(login: str, password: str):
     user = await ApiUsersDAO.find_one_or_none(api_user_login_name=login)
-    if not user and verify_password(password, user.password):
+    print(user)
+    if not user and verify_password(password, user.hashed_api_user_password):
         return None
     return user
 
