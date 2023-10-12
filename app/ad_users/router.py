@@ -13,7 +13,13 @@ router = APIRouter(
 )
 
 
-@router.post('/new_user')
+# @router.post('/add_new_user')
+# async def add_new_ad_user(api_user: ApiUsers = Depends(get_current_api_user)):
+#     # print(user, type(user), user.email)
+#     # return await BookingDAO.find_all(user_id=user.id)
+#     return await ApiUsersDAO.find_all(id=1)
+
+@router.post('/add_new_user')
 async def add_new_ad_user(api_user: ApiUsers = Depends(get_current_api_user)):
     # print(user, type(user), user.email)
     # return await BookingDAO.find_all(user_id=user.id)

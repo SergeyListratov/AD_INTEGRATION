@@ -32,5 +32,5 @@ async def login_api_user(response: Response, user_date: SApiUserAuth):
 
 @router.post('/logout')
 async def logout_api_user(response: Response):
-    response.delete_cookie('Ad_access_token')
+    response.delete_cookie('ad_access_token')
     return 'Api_user logout'

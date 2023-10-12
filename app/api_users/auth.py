@@ -32,7 +32,6 @@ def create_access_token(date: dict) -> str:
 
 async def authenticate_api_user(login: str, password: str):
     user = await ApiUsersDAO.find_one_or_none(api_user_login_name=login)
-    print(user)
     if not user and verify_password(password, user.hashed_api_user_password):
         return None
     return user
