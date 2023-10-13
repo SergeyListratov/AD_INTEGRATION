@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Response, Depends
 
 from app.ad_users.dao import AdUsersDAO
-from app.api_users.auth import get_password_hash, verify_password, authenticate_api_user, create_access_token
 from app.api_users.dependencies import get_current_api_user
+from app.ad_users.dependencies import create_ad_user
 from app.api_users.models import ApiUsers
 from app.api_users.shemas import SApiUserAuth
 from app.api_users.dao import ApiUsersDAO
