@@ -54,3 +54,8 @@ class PermissionDenied(Api_User_Exception):
     detail = 'Неавторизованный пользоваетель'
 
 
+class NotAuthorizedAction(Api_User_Exception):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = 'Неавторизованные действия'
+
+

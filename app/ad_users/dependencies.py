@@ -1,9 +1,10 @@
 import json
 from ldap3 import Server, Connection, SUBTREE, ALL_ATTRIBUTES, Tls, MODIFY_REPLACE, ALL
 from app.config import settings
+from transliterate import translit
 
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
-LDAP_BASE_DN = 'OU=NEW_USERS,OU=Test33,DC=rpz,DC=local'
+LDAP_BASE_DN = 'OU=New_users,OU=TEST33,DC=rpz,DC=local'
 search_filter = "(displayName={0}*)"
 
 
@@ -18,10 +19,19 @@ def find_ad_users(username):
     return json.loads(c.response_to_json())
 
 
+def transfer_ad_user(username, forename, surname, division, tabel_number):
+    pass
+
+
+def dismiss_ad_user(username, forename, surname, division, tabel_number):
+    pass
+
+
 def create_ad_user(username, forename, surname, division, new_password):
     with ldap_conn() as conn:
         attributes = get_attributes(username, forename, surname)
         user_dn = get_dn(username, division)
+        print(user_dn, attributes)
         result = conn.add(dn=user_dn, object_class=OBJECT_CLASS, attributes=attributes)
         if not result:
             msg = f'ERROR: User {username} was not created: {conn.result.get("description")}'
@@ -46,7 +56,7 @@ def ldap_conn():
 
 
 def get_dn(username, division):
-    return f"CN={username},OU=NEW_USERS,OU={division},DC=rpz,DC=local"
+    return f"CN={username},OU=New_users,OU={division},DC=rpz,DC=local"
 
 
 def get_attributes(username, forename, surname):
@@ -61,10 +71,27 @@ def get_attributes(username, forename, surname):
 
 
 def get_groups():
-    postfix = ',OU=Access,OU=Groups,DC=rpz,DC=local'
-    return [f'CN=ConnectDB_1C_83_01_TASKS_TEST{postfix}']
+    postfix = ',OU=Roles,OU=TEST33,DC=rpz,DC=local'
+    # return [f'CN=ConnectDB_1C_83_01_TASKS_TEST{postfix}']
+    return [f'CN=TEST33_TU_01{postfix}']
 
 
-create_ad_user('D.Bond', 'Jimmy', 'Bond', 'Test33', 'Qwerty1')
+def get_translit(text: str) -> str:
+    en_text = translit(text, language_code='ru', reversed=True)
+    return en_text
 
-print(ldap_conn())
+
+def get_division(st: str) -> str:
+    new_st = ''
+    symbol_dict = {' ': '_', '(': '', ')': '', '.': ''}
+    en_st = get_translit(st).upper()
+    for s in en_st:
+        if s in symbol_dict:
+            s = symbol_dict[s]
+        new_st = new_st + s
+    new_st = new_st.strip('_')
+    return new_st
+
+
+def create_login(first, middle, last):
+    pass
