@@ -25,7 +25,7 @@ LDAP_BASE_DN = 'DC=rpz,DC=local'
 
 '''
 Функция find_ad_users ищет всех пользователей в AD по ФИО и табельному. 
-В итог также попадают пользователи: Если у них нет отчества, и Если них нет тебельного.
+В результат поиска попадают пользователи: Если у них нет отчества, и Если них нет тебельного.
 '''
 def find_ad_users(
         first_name: str, other_name: str, last_name: str, initials: str, ldap_base_dn: str = LDAP_BASE_DN
@@ -62,33 +62,50 @@ def transfer_ad_user(first_name, other_name, last_name, initials):
     pass
 
 
-def dismiss_ad_user(first_name, other_name, last_name, initials):
+
+'''
+Функция dismiss_ad_user использует find_ad_users.
+Отключает всех найденых find_ad_users пользователей в AD по ФИО и табельному. 
+Отключает пльзователей с заданным ФИО, но без табельного.
+Перемещает отключенных пользоватлей в OU = Dismissed_user. Меняет табельный на '00000'.
+Меняет пароль на 'Qwerty1234509876f'.
+Возврещеет текстовое сообщение с описанием действия и со статусом.
+'''
+def dismiss_ad_user(
+        first_name: str, other_name: str, last_name: str, initials: str
+) -> Optional[list[dict]]:
     with ldap_conn() as conn:
-        msg_fail = f'User {first_name} {other_name}, {last_name} not found.'
-        user_list = find_ad_users(first_name, other_name, last_name, initials)
+        result_list: Optional[list[dict]] = []
+        find_usr_list: Optional[list[dict]] = find_ad_users(first_name, other_name, last_name, initials)
         dism_password = 'Qwerty1234509876f'
         dism_unit = 'OU=Dismissed_users'
-        if user_list:
-            d_n = user_list["distinguishedName"]
-            msg_suss = f'User {d_n.split(",")[0][3:]} blocked and move to Dismissed_users.'
-            disable_account = {"userAccountControl": (MODIFY_REPLACE, [514])}
-            conn.modify(d_n, changes=disable_account)
-            conn.extend.microsoft.modify_password(user=d_n,
-                                                  new_password=dism_password,
-                                                  old_password=None)
-            d_n_list = d_n.split(",")
-            d_n_list[1] = dism_unit
-            c_n = d_n_list.pop(0)
-            d_n_diss = ','.join(d_n_list)
-            print(c_n)
-            print(d_n_diss)
-            conn.modify_dn(d_n, c_n, new_superior=d_n_diss)
-            if conn.result['result'] == 0:
-                return msg_suss
-            else:
-                return f'Error. User not blocked {conn.result["message"]}'
+        if find_usr_list:
+            for usr in find_usr_list:
+                d_n = usr["distinguishedName"]
+                msg_suss = f'OK. User {d_n.split(",")[0][3:]} blocked and move to Dismissed_users.'
+                disable_account = {"userAccountControl": (MODIFY_REPLACE, [514])}
+                diss_initials = {'initials': '00000'}
+                conn.modify(d_n, changes=disable_account)
+                # conn.modify(d_n, changes=diss_initials)
+                conn.extend.microsoft.modify_password(user=d_n,
+                                                      new_password=dism_password,
+                                                      old_password=None)
+                d_n_list = d_n.split(",")
+                d_n_list[1] = dism_unit
+                c_n = d_n_list.pop(0)
+                d_n_diss = ','.join(d_n_list)
+                conn.modify_dn(d_n, c_n, new_superior=d_n_diss)
+                if conn.result['result'] == 0:
+                    result_list.append({'status': 'OK', 'msg': msg_suss, 'user': d_n, 'dismissed_user': f'{c_n},{d_n_diss}'})
+                else:
+                    msg_fail = f'Error. User not blocked: {conn.result["message"]}'
+                    result_list.append({'status': 'ERROR', 'msg': msg_fail, 'user': d_n, 'dismissed_user': d_n_diss})
+
+            return result_list
         else:
-            return msg_fail
+            msg_fail = f'Error. User {first_name} {other_name}, {last_name} not found.'
+            result_list.append({'status': 'ERROR', 'msg': msg_fail, 'user': None, 'dismissed_user': None})
+            return result_list
 
 
 def create_ad_user(username, forename, surname, division, new_password):
@@ -203,6 +220,6 @@ if __name__ == '__main__':
 
     first_name, other_name, last_name, initials = 'Джеймс', 'Д', 'Бонд', '33999'
 
-    # print(dismiss_ad_user(first_name, other_name, last_name, initials))
+    print(dismiss_ad_user(first_name, other_name, last_name, initials))
 
-    print(find_ad_users(first_name, other_name, last_name, initials))
+    # print(find_ad_users(first_name, other_name, last_name, initials))
