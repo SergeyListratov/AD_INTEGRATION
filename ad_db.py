@@ -8,7 +8,6 @@ OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
 # LDAP_BASE_DN = 'OU=New_users,OU=TEST33,DC=rpz,DC=local'
 LDAP_BASE_DN = 'DC=rpz,DC=local'
 
-
 # search_filter = "(displayName={0}*)"
 # search_filter = f"(sAMAccountName={sAMAccountName})"
 
@@ -25,8 +24,10 @@ LDAP_BASE_DN = 'DC=rpz,DC=local'
 
 '''
 Функция find_ad_users ищет всех пользователей в AD по ФИО и табельному. 
-В результат поиска попадают пользователи: Если у них нет отчества, и Если них нет тебельного.
+В результат поиска также попадают пользователи: без отчества и без тебельного номера.
+Возврещеет список словарей с найдеными пользователями.
 '''
+
 def find_ad_users(
         first_name: str, other_name: str, last_name: str, initials: str, ldap_base_dn: str = LDAP_BASE_DN
 ) -> Optional[list[dict]]:
@@ -58,10 +59,81 @@ def find_ad_users(
         return find_usr_list
 
 
-def transfer_ad_user(first_name, other_name, last_name, initials):
-    pass
+
+'''
+Функция find_ad_groups ищет все группы в AD по наименованию подразделения из 1с ЗиК. 
+Использует get_translit для перевода на английский, 
+get_division удаления символов.
+Возврещеет список словарей с правами по умолчанию для перемещаемого польователя
+и путь для нового SN .
+'''
+def find_ad_groups(
+        division: str, ldap_base_dn: str = LDAP_BASE_DN
+) -> Optional[list[dict]]:
+    find_grp_list: Optional[list[dict]] = []
+    with ldap_conn() as c:
+        gp = get_division(get_translit(division))
+        search_filter = f"(cn={gp})"
+        c.search(search_base=ldap_base_dn,
+                 search_filter=search_filter,
+                 search_scope=SUBTREE,
+                 attributes=ALL_ATTRIBUTES,
+                 get_operational_attributes=True)
+        ad_atr_list: Optional[list[dict]] = json.loads(c.response_to_json())['entries']
+        if ad_atr_list:
+            for ad_atr in ad_atr_list:
+                ad_dict = {'pre_distinguishedName': ad_atr['attributes']['distinguishedName'],
+                           'Division': ad_atr['attributes']['cn'],
+                           'memberOf': ad_atr['attributes']['memberOf']
+                           }
+                find_grp_list.append(ad_dict)
+    if find_grp_list:
+        pre_sn = find_grp_list[0]['pre_distinguishedName'].split(',')
+        pre_sn.pop(0)
+        pre_sn.pop(0)
+        pre_sn = 'OU=User,' + (','.join(pre_sn))
+        find_grp_list[0]['pre_distinguishedName'] = pre_sn
+
+        return find_grp_list
+
+    return []
 
 
+
+'''
+Функция transfer_ad_user использует find_ad_users.
+Перемещает всех найденых find_ad_users пользователей в AD по ФИО и табельному
+в новое подразделение. Удаляет все группы доступа пользователя и добавляет группы доступа по умолчанию для нового 
+подразделения (новой должности).
+Возврещеет список словарей с описанием действия и со статусом.
+'''
+def transfer_ad_user(
+        first_name: str, other_name: str, last_name: str, initials: str, new_division: str, new_role: str
+) -> Optional[list[dict]]:
+    find_user = find_ad_users(first_name, other_name, last_name, initials)
+    find_group = find_ad_groups(new_division)
+    if find_user and find_group:
+        print(find_user)
+        print(find_group)
+        d_n = find_user[0]['distinguishedName']
+        c_n = find_user[0]['CommonName']
+        d_n_new = find_group[0]['pre_distinguishedName']
+        member = {'memberOf': ['CN=RestoreDB_sl_Dev_AdventureWorks2008R2,OU=Access,OU=Groups,DC=rpz,DC=local']}
+        print(d_n)
+        print(c_n)
+        print(d_n_new)
+        with ldap_conn() as conn:
+            conn.modify_dn(d_n, c_n, new_superior=d_n_new)
+            # conn.modify(d_n, changes=member)
+            r = conn.result['result']
+            # if conn.result['result'] == 0:
+            #     result_list.append(
+            #         {'status': 'OK', 'msg': msg_suss, 'user': d_n, 'dismissed_user': f'{c_n},{d_n_diss}'})
+            # else:
+            #     msg_fail = f'Error. User not blocked: {conn.result["message"]}'
+            #     result_list.append({'status': 'ERROR', 'msg': msg_fail, 'user': d_n, 'dismissed_user': d_n_diss})
+
+    return r
 
 '''
 Функция dismiss_ad_user использует find_ad_users.
@@ -69,7 +141,7 @@ def transfer_ad_user(first_name, other_name, last_name, initials):
 Отключает пльзователей с заданным ФИО, но без табельного.
 Перемещает отключенных пользоватлей в OU = Dismissed_user. Меняет табельный на '00000'.
 Меняет пароль на 'Qwerty1234509876f'.
-Возврещеет текстовое сообщение с описанием действия и со статусом.
+Возврещеет список словарей с описанием действия и cтатусом.
 '''
 def dismiss_ad_user(
         first_name: str, other_name: str, last_name: str, initials: str
@@ -96,7 +168,8 @@ def dismiss_ad_user(
                 d_n_diss = ','.join(d_n_list)
                 conn.modify_dn(d_n, c_n, new_superior=d_n_diss)
                 if conn.result['result'] == 0:
-                    result_list.append({'status': 'OK', 'msg': msg_suss, 'user': d_n, 'dismissed_user': f'{c_n},{d_n_diss}'})
+                    result_list.append(
+                        {'status': 'OK', 'msg': msg_suss, 'user': d_n, 'dismissed_user': f'{c_n},{d_n_diss}'})
                 else:
                     msg_fail = f'Error. User not blocked: {conn.result["message"]}'
                     result_list.append({'status': 'ERROR', 'msg': msg_fail, 'user': d_n, 'dismissed_user': d_n_diss})
@@ -170,26 +243,28 @@ def get_division(st: str) -> str:
         if s in symbol_dict:
             s = symbol_dict[s]
         new_st = new_st + s
-    new_st = new_st.strip('_')
     return new_st
 
 
 def login_generator(first_name: str, other_name: str, last_name: str) -> str:
-    f, o, lst = map(get_translit, (first_name.lower(), other_name.lower(), last_name.lower()))
-    login_t = (
-        f'{f[0]}.{lst}',
-        f'{f[0]}.{o[0]}.{lst}',
-        f'{lst}',
-        f'{f[0]}.{lst}1',
-        f'{f[0]}.{lst}2',
-        f'{f[0]}.{lst}3'
+    f_n, o_n, l_n = map(get_translit, (first_name.lower(), other_name.lower(), last_name.lower()))
+    login_tuple = (
+        f'{f_n[0]}.{l_n}',
+        f'{f_n[0]}.{o_n[0]}.{l_n}',
+        f'{l_n}',
+        f'{f_n[0]}.{l_n}1',
+        f'{f_n[0]}.{l_n}2',
+        f'{f_n[0]}.{l_n}3'
     )
-    for log in login_t:
-        yield log
+    for login in login_tuple:
+        yield login
 
 
 if __name__ == '__main__':
-    # print(get_division('ТИ31 (УИТ ПРО)'))
+    # print(get_division('0013 (Цех13 СВП )'))
+    # print(get_division('УТ (ТЕСТ БТ )'))
+    # print(get_division('УТ (ТЕСТ БТ )'))
+    print(find_ad_groups('УТ (ТЕСТ1 БТ_)'))
 
     # first, middle, last = 'Сергей', 'Олегович', 'Листратов'
     #
@@ -218,8 +293,6 @@ if __name__ == '__main__':
     # print(next(a))
     # print(next(a))
 
-    first_name, other_name, last_name, initials = 'Джеймс', 'Д', 'Бонд', '33999'
-
-    print(dismiss_ad_user(first_name, other_name, last_name, initials))
-
+    first_name, other_name, last_name, initials, division, rol = 'Джеймс', 'Д', 'Бонд', '33099', 'УТ (ТЕСТ1 БТ_)', 'Специальный агент'
     # print(find_ad_users(first_name, other_name, last_name, initials))
+    print(transfer_ad_user(first_name, other_name, last_name, initials, division, rol))
