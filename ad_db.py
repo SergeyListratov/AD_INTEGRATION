@@ -211,38 +211,47 @@ def create_ad_user(
     find_group = find_ad_groups(division)
     new_login = get_actual_ad_sam_name(first_name, other_name, last_name)
     if not find_user and find_group:
-        with ldap_conn() as conn:
-            while login_generator(first_name, other_name, last_name):
+        pre_d_n_user = find_group[0]['new_pre_distinguishedName']
+        new_usr_attr = {
+                        "displayName": f'CN={first_name} {other_name} {last_name}',
+                        "sAMAccountName": new_login,
+                        "userPrincipalName": f'{new_login}@rpz.local',
+                        "name": f'CN={first_name} {other_name} {last_name}',
+                        "givenName": first_name,
+                        "dn": f'CN={first_name} {other_name} {last_name},{pre_d_n_user}',
+                        'department': division,
+                        'company': 'АО РПЗ',
+                        'title': role
+                        }
 
-        pre_d_n_user = find_group[0]['pre_distinguishedName']
         d_n_group = find_group[0]['group_distinguishedName']
-        c_n_user =
-
+        c_n_user = f'CN={first_name} {other_name} {last_name}'
+    print(new_usr_attr)
     return result_list
 
 
 
 # def create_ad_user(username, forename, surname, division, new_password):
-    with ldap_conn() as conn:
-        attributes = get_attributes(username, forename, surname)
-        user_dn = get_dn(username, division)
-        print(user_dn, attributes)
-        result = conn.add(dn=user_dn, object_class=OBJECT_CLASS, attributes=attributes)
-        if not result:
-            msg = f'ERROR: User {username} was not created: {conn.result.get("description")}'
-            raise Exception(msg)
-
-        # unlock and set password
-        conn.extend.microsoft.unlock_account(user=user_dn)
-        conn.extend.microsoft.modify_password(user=user_dn,
-                                              new_password=new_password,
-                                              old_password=None)
-        # Enable account - must happen after user password is set
-        enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
-        conn.modify(user_dn, changes=enable_account)
-
-        # Add groups
-        conn.extend.microsoft.add_members_to_groups([user_dn], get_groups())
+#     with ldap_conn() as conn:
+#         attributes = get_attributes(username, forename, surname)
+#         user_dn = get_dn(username, division)
+#         print(user_dn, attributes)
+#         result = conn.add(dn=user_dn, object_class=OBJECT_CLASS, attributes=attributes)
+#         if not result:
+#             msg = f'ERROR: User {username} was not created: {conn.result.get("description")}'
+#             raise Exception(msg)
+#
+#         # unlock and set password
+#         conn.extend.microsoft.unlock_account(user=user_dn)
+#         conn.extend.microsoft.modify_password(user=user_dn,
+#                                               new_password=new_password,
+#                                               old_password=None)
+#         # Enable account - must happen after user password is set
+#         enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
+#         conn.modify(user_dn, changes=enable_account)
+#
+#         # Add groups
+#         conn.extend.microsoft.add_members_to_groups([user_dn], get_groups())
 
 
 
@@ -365,6 +374,7 @@ if __name__ == '__main__':
     # print(next(a))
 
     first_name, other_name, last_name, initials, division, rol = 'Джеймс', 'Д', 'Бонд', '33999', 'МТ (ТЕСТ1 БО))', 'Специальный агент3'
-    first_name, other_name, last_name, initials, division, rol = 'Джеймс', 'Д', 'Бонд', '33999', 'УТ (ТЕСТ БТ )', 'Специальный агент007'
+    first_name, other_name, last_name, initials, division, rol = 'Джеймсс', 'Б', 'Бон', '3388', 'УТ (ТЕСТ БТ )', 'Специальный агент001'
     # print(find_ad_users(first_name, other_name, last_name, initials))
-    print(transfer_ad_user(first_name, other_name, last_name, initials, division, rol))
+    # print(transfer_ad_user(first_name, other_name, last_name, initials, division, rol))
+    print(create_ad_user(first_name, other_name, last_name, initials, division, rol))
