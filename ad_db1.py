@@ -209,11 +209,7 @@ def create_ad_user(
     result_list: Optional[list[dict]] = []
     find_user = find_ad_users(first_name, other_name, last_name, initials)
     find_group = find_ad_groups(division)
-    new_login = get_actual_ad_sam_name(first_name, other_name, last_name)
     if not find_user and find_group:
-        with ldap_conn() as conn:
-            while login_generator(first_name, other_name, last_name):
-
         pre_d_n_user = find_group[0]['pre_distinguishedName']
         d_n_group = find_group[0]['group_distinguishedName']
         c_n_user =
@@ -245,25 +241,6 @@ def create_ad_user(
         conn.extend.microsoft.add_members_to_groups([user_dn], get_groups())
 
 
-
-def get_actual_ad_sam_name(first_name, other_name, last_name) -> str:
-    with ldap_conn() as conn:
-        sAMAccountName : ''
-        while not sAMAccountName:
-            login = login_generator(first_name, other_name, last_name)
-            a = next(login)
-            search_filter = f"(sAMAccountName={a}))"
-            conn.search(search_base=LDAP_BASE_DN,
-                     search_filter=search_filter,
-                     search_scope=SUBTREE,
-                     attributes=ALL_ATTRIBUTES,
-                     get_operational_attributes=True)
-            if not json.loads(conn.response_to_json())['entries']:
-                sAMAccountName = a
-
-    return sAMAccountName
-
-
 def ldap_conn():
     server = Server(settings.AD_SERVER_IP, use_ssl=False, get_info=ALL)
     return Connection(server, user=settings.AD_USER, password=settings.AD_PASS, auto_bind=True)
@@ -278,17 +255,15 @@ def get_attributes(
         first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str
 ) -> dict[str, str | Any]:
     c_n = f'{first_name} {other_name} {last_name}'
-    username = login_generator(first_name, other_name, last_name)
-    s_n = f"CN={c_n},OU=New_users,OU={division},DC=rpz,DC=local"
-    division = get_division(division)
+    username = login_generator()
     return {
         "displayName": c_n,
         "sAMAccountName": username,
         "userPrincipalName": f'{username}@rpz.local',
-        "name": c_n,
-        "givenName": first_name,
-        "sn": s_n,
-        'department': division,
+        "name": username,
+        "givenName": forename,
+        "sn": surname,
+        'department': new_division,
         'company': 'АО РПЗ',
         'title': role
     }
