@@ -212,33 +212,33 @@ def create_ad_user(
     if not find_user and find_group:
         pre_d_n_user = find_group[0]['pre_distinguishedName']
         d_n_group = find_group[0]['group_distinguishedName']
-        c_n_user =
+        at = get_attributes(first_name, other_name, last_name, initials, division, role)
 
     return result_list
 
 
 
 # def create_ad_user(username, forename, surname, division, new_password):
-    with ldap_conn() as conn:
-        attributes = get_attributes(username, forename, surname)
-        user_dn = get_dn(username, division)
-        print(user_dn, attributes)
-        result = conn.add(dn=user_dn, object_class=OBJECT_CLASS, attributes=attributes)
-        if not result:
-            msg = f'ERROR: User {username} was not created: {conn.result.get("description")}'
-            raise Exception(msg)
-
-        # unlock and set password
-        conn.extend.microsoft.unlock_account(user=user_dn)
-        conn.extend.microsoft.modify_password(user=user_dn,
-                                              new_password=new_password,
-                                              old_password=None)
-        # Enable account - must happen after user password is set
-        enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
-        conn.modify(user_dn, changes=enable_account)
-
-        # Add groups
-        conn.extend.microsoft.add_members_to_groups([user_dn], get_groups())
+#     with ldap_conn() as conn:
+#         attributes = get_attributes(username, forename, surname)
+#         user_dn = get_dn(username, division)
+#         print(user_dn, attributes)
+#         result = conn.add(dn=user_dn, object_class=OBJECT_CLASS, attributes=attributes)
+#         if not result:
+#             msg = f'ERROR: User {username} was not created: {conn.result.get("description")}'
+#             raise Exception(msg)
+#
+#         # unlock and set password
+#         conn.extend.microsoft.unlock_account(user=user_dn)
+#         conn.extend.microsoft.modify_password(user=user_dn,
+#                                               new_password=new_password,
+#                                               old_password=None)
+#         # Enable account - must happen after user password is set
+#         enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
+#         conn.modify(user_dn, changes=enable_account)
+#
+#         # Add groups
+#         conn.extend.microsoft.add_members_to_groups([user_dn], get_groups())
 
 
 def ldap_conn():
@@ -255,15 +255,16 @@ def get_attributes(
         first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str
 ) -> dict[str, str | Any]:
     c_n = f'{first_name} {other_name} {last_name}'
-    username = login_generator()
+    username = login_generator(first_name, other_name, last_name)
+    s_n = f"CN={c_n},OU=New_users,OU={division},DC=rpz,DC=local"
     return {
         "displayName": c_n,
         "sAMAccountName": username,
         "userPrincipalName": f'{username}@rpz.local',
-        "name": username,
-        "givenName": forename,
-        "sn": surname,
-        'department': new_division,
+        "name": c_n,
+        "givenName": first_name,
+        "sn": s_n,
+        'department': division,
         'company': 'АО РПЗ',
         'title': role
     }
