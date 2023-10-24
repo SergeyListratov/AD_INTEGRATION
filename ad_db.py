@@ -10,7 +10,6 @@ from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_fro
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
 LDAP_BASE_DN = 'DC=rpz,DC=local'
 
-
 '''
 Функция find_ad_users ищет всех пользователей в AD по ФИО и табельному. 
 В результат поиска также попадают пользователи: без отчества и без тебельного номера.
@@ -50,7 +49,7 @@ def find_ad_users(
                                    # 'memberOf': ad_atr['attributes']['memberOf']
                                    }
                         find_usr_list.append(ad_dict)
-                    if 'memberOf' in ad_atr['attributes']:
+                    if 'memberOf' in ad_atr['attributes'] and find_usr_list:
                         find_usr_list[-1]['memberOf'] = ad_atr['attributes']['memberOf']
 
         return find_usr_list
@@ -83,6 +82,7 @@ def find_ad_groups(
                 if 'memberOf' in ad_atr['attributes']:
                     ad_dict = {'pre_distinguishedName': ad_atr['attributes']['distinguishedName'],
                                'group_distinguishedName': ad_atr['attributes']['distinguishedName'],
+                               'new_pre_distinguishedName': ad_atr['attributes']['distinguishedName'],
                                'Division': ad_atr['attributes']['cn'],
                                'memberOf': ad_atr['attributes']['memberOf']
                                }
@@ -90,6 +90,7 @@ def find_ad_groups(
                 else:
                     ad_dict = {'pre_distinguishedName': ad_atr['attributes']['distinguishedName'],
                                'group_distinguishedName': ad_atr['attributes']['distinguishedName'],
+                               'new_pre_distinguishedName': ad_atr['attributes']['distinguishedName'],
                                'Division': ad_atr['attributes']['cn']
                                }
                     find_grp_list.append(ad_dict)
@@ -97,8 +98,10 @@ def find_ad_groups(
         pre_sn = find_grp_list[0]['pre_distinguishedName'].split(',')
         pre_sn.pop(0)
         pre_sn.pop(0)
-        pre_sn = 'OU=Users,' + (','.join(pre_sn))
-        find_grp_list[0]['pre_distinguishedName'] = pre_sn
+        pre_sn_user = 'OU=Users,' + (','.join(pre_sn))
+        find_grp_list[0]['pre_distinguishedName'] = pre_sn_user
+        pre_sn_new = 'OU=New_users,' + (','.join(pre_sn))
+        find_grp_list[0]['new_pre_distinguishedName'] = pre_sn_new
 
         return find_grp_list
 
@@ -135,8 +138,8 @@ def transfer_ad_user(
         with ldap_conn() as conn:
             conn.modify_dn(d_n_user, c_n_user, new_superior=pre_d_n_new)
             transfer_user_info = {'department': [(MODIFY_REPLACE, f'{new_division}')],
-                             'company': [(MODIFY_REPLACE, 'АО РПЗ')],
-                             'title': [MODIFY_REPLACE, f'{new_role}']}
+                                  'company': [(MODIFY_REPLACE, 'АО РПЗ')],
+                                  'title': [MODIFY_REPLACE, f'{new_role}']}
             conn.modify(d_n_new, changes=transfer_user_info)
 
             if removed_groups:
@@ -201,44 +204,94 @@ def dismiss_ad_user(
             return result_list
 
 
-
-
 def create_ad_user(
         first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str
 ) -> Optional[list[dict]]:
     result_list: Optional[list[dict]] = []
+    new_pass = 'Qwerty1'
+    c_n = f'{first_name} {other_name} {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, initials)
+    init = any(map(lambda i: 'initials' in i, find_user))
     find_group = find_ad_groups(division)
-    if not find_user and find_group:
-        pre_d_n_user = find_group[0]['pre_distinguishedName']
+    login = get_login(first_name, other_name, last_name)
+    if find_group and not init:
+        pre_d_n_user = find_group[0]['new_pre_distinguishedName']
         d_n_group = find_group[0]['group_distinguishedName']
-        c_n_user =
+        new_user_dn = f'CN={c_n},{pre_d_n_user}'
+        user_ad_attr = {
+            "displayName": c_n,
+            "sAMAccountName": login,
+            "userPrincipalName": f'{login}@rpz.local',
+            "name": c_n,
+            "givenName": first_name,
+            "sn": last_name,
+            'department': division,
+            'company': 'АО РПЗ',
+            'title': role,
+            'initials': initials,
+            'description': role
+        }
+        with ldap_conn() as conn:
+            result = conn.add(dn=new_user_dn, object_class=OBJECT_CLASS, attributes=user_ad_attr)
+            if not result:
+                msg = f'ERROR: User {c_n} was not created: {conn.result.get("description")}'
+                raise Exception(msg)
 
-    return result_list
+            result = conn.result
 
+            # unlock and set password
+            conn.extend.microsoft.unlock_account(user=new_user_dn)
+            conn.extend.microsoft.modify_password(user=new_user_dn,
+                                                  new_password=new_pass,
+                                                  old_password=None)
+            # Enable account - must happen after user password is set
+            enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
+            conn.modify(new_user_dn, changes=enable_account)
+
+            # Add groups
+            conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
+
+            # result_list: Optional[list[dict]] = json.loads(conn.response_to_json())['entries']
+
+    return result
 
 
 # def create_ad_user(username, forename, surname, division, new_password):
+#     with ldap_conn() as conn:
+#         attributes = get_attributes(username, forename, surname)
+#         user_dn = get_dn(username, division)
+#         print(user_dn, attributes)
+#         result = conn.add(dn=user_dn, object_class=OBJECT_CLASS, attributes=attributes)
+#         if not result:
+#             msg = f'ERROR: User {username} was not created: {conn.result.get("description")}'
+#             raise Exception(msg)
+#
+#         # unlock and set password
+#         conn.extend.microsoft.unlock_account(user=user_dn)
+#         conn.extend.microsoft.modify_password(user=user_dn,
+#                                               new_password=new_password,
+#                                               old_password=None)
+#         # Enable account - must happen after user password is set
+#         enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
+#         conn.modify(user_dn, changes=enable_account)
+#
+#         # Add groups
+#         conn.extend.microsoft.add_members_to_groups([user_dn], get_groups())
+
+
+def get_login(first_name, other_name, last_name):
     with ldap_conn() as conn:
-        attributes = get_attributes(username, forename, surname)
-        user_dn = get_dn(username, division)
-        print(user_dn, attributes)
-        result = conn.add(dn=user_dn, object_class=OBJECT_CLASS, attributes=attributes)
-        if not result:
-            msg = f'ERROR: User {username} was not created: {conn.result.get("description")}'
-            raise Exception(msg)
-
-        # unlock and set password
-        conn.extend.microsoft.unlock_account(user=user_dn)
-        conn.extend.microsoft.modify_password(user=user_dn,
-                                              new_password=new_password,
-                                              old_password=None)
-        # Enable account - must happen after user password is set
-        enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
-        conn.modify(user_dn, changes=enable_account)
-
-        # Add groups
-        conn.extend.microsoft.add_members_to_groups([user_dn], get_groups())
+        ad_attr = ['1']
+        login_iterator = login_generator(first_name, other_name, last_name)
+        while ad_attr:
+            login = next(login_iterator)
+            search_filter = f'(&(objectCategory=Person)(sAMAccountName={login}))'
+            conn.search(search_base=LDAP_BASE_DN,
+                        search_filter=search_filter,
+                        search_scope=SUBTREE,
+                        attributes=['sAMAccountName'])
+            ad_attr: Optional[list[dict]] = json.loads(conn.response_to_json())['entries']
+    return login
 
 
 def ldap_conn():
@@ -255,15 +308,15 @@ def get_attributes(
         first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str
 ) -> dict[str, str | Any]:
     c_n = f'{first_name} {other_name} {last_name}'
-    username = login_generator()
+    username = login_generator(first_name, other_name, last_name)
     return {
         "displayName": c_n,
         "sAMAccountName": username,
         "userPrincipalName": f'{username}@rpz.local',
         "name": username,
-        "givenName": forename,
-        "sn": surname,
-        'department': new_division,
+        "givenName": first_name,
+        "sn": c_n,
+        'department': division,
         'company': 'АО РПЗ',
         'title': role
     }
@@ -340,6 +393,13 @@ if __name__ == '__main__':
     # print(next(a))
 
     first_name, other_name, last_name, initials, division, rol = 'Джеймс', 'Д', 'Бонд', '33999', 'МТ (ТЕСТ1 БО))', 'Специальный агент3'
-    first_name, other_name, last_name, initials, division, rol = 'Джеймс', 'Д', 'Бонд', '33999', 'УТ (ТЕСТ БТ )', 'Специальный агент007'
+    first_name, other_name, last_name, initials, division, rol = 'Джейм', 't', 'Бон', '33998', 'МТ (ТЕСТ1 БО))', 'Специальный агент001'
     # print(find_ad_users(first_name, other_name, last_name, initials))
-    print(transfer_ad_user(first_name, other_name, last_name, initials, division, rol))
+    print(get_login(first_name, other_name, last_name))
+    # print(transfer_ad_user(first_name, other_name, last_name, initials, division, rol))
+
+    create = create_ad_user(first_name, other_name, last_name, initials, division, rol)
+    print(create)
+
+    # initials = any(map(lambda i: 'initials' in i, find_user))
+    # print(initials)
