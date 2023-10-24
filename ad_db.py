@@ -120,6 +120,7 @@ def find_ad_groups(
 def transfer_ad_user(
         first_name: str, other_name: str, last_name: str, initials: str, new_division: str, new_role: str
 ) -> Optional[list[dict]]:
+    action = 'TRANSFERRED'
     result_list: Optional[list[dict]] = []
     find_user = find_ad_users(first_name, other_name, last_name, initials)
     find_group = find_ad_groups(new_division)
@@ -169,6 +170,7 @@ def transfer_ad_user(
 def dismiss_ad_user(
         first_name: str, other_name: str, last_name: str, initials: str
 ) -> Optional[list[dict]]:
+    action = 'DISMISSED'
     with ldap_conn() as conn:
         result_list: Optional[list[dict]] = []
         find_usr_list: Optional[list[dict]] = find_ad_users(first_name, other_name, last_name, initials)
@@ -178,13 +180,10 @@ def dismiss_ad_user(
             for usr in find_usr_list:
                 d_n = usr["distinguishedName"]
                 msg_suss = f'OK. User {d_n.split(",")[0][3:]} blocked and move to Dismissed_users.'
-                disable_account = {"userAccountControl": (MODIFY_REPLACE, [514])}
-                diss_initials = {'initials': '00000'}
+                disable_account = {"userAccountControl": (MODIFY_REPLACE, [514]),
+                                   'initials': [(MODIFY_REPLACE, '00000')]}
                 conn.modify(d_n, changes=disable_account)
-                # conn.modify(d_n, changes=diss_initials)
-                conn.extend.microsoft.modify_password(user=d_n,
-                                                      new_password=dism_password,
-                                                      old_password=None)
+                conn.extend.microsoft.modify_password(user=d_n, new_password=dism_password, old_password=None)
                 d_n_list = d_n.split(",")
                 d_n_list[1] = dism_unit
                 c_n = d_n_list.pop(0)
@@ -204,9 +203,20 @@ def dismiss_ad_user(
             return result_list
 
 
+'''
+Функция create_ad_user использует find_ad_users find_ad_groups.
+Создает пользователя в AD по ФИО и табельному. 
+Заполняет реквизиты ползователя: должнссть отдел организация.
+Перемещает пользоватлея в OU = отдела. 
+Меняет пароль на 'Qwerty1' с обязательной сменой при вследующем входе.
+# Возврещеет список словарей с описанием действия, cтатусом и ключем 'email'
+c почтой пользовалеля для кадровой службы.
+'''
+
 def create_ad_user(
         first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str
 ) -> Optional[list[dict]]:
+    action = 'CREATED'
     result_list: Optional[list[dict]] = []
     new_pass = 'Qwerty1'
     c_n = f'{first_name} {other_name} {last_name}'
@@ -234,10 +244,9 @@ def create_ad_user(
         with ldap_conn() as conn:
             result = conn.add(dn=new_user_dn, object_class=OBJECT_CLASS, attributes=user_ad_attr)
             if not result:
-                msg = f'ERROR: User {c_n} was not created: {conn.result.get("description")}'
-                raise Exception(msg)
-
-            result = conn.result
+                msg = f'ERROR: User {new_user_dn} was not created: {conn.result.get("description")}'
+                result_list.append(get_result('ERRORS', msg, new_user_dn, action, email=''))
+                return result_list
 
             # unlock and set password
             conn.extend.microsoft.unlock_account(user=new_user_dn)
@@ -247,36 +256,24 @@ def create_ad_user(
             # Enable account - must happen after user password is set
             enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
             conn.modify(new_user_dn, changes=enable_account)
-
             # Add groups
             conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
+            msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
+            result_list.append(get_result('OK', msg, new_user_dn, action, email=user_ad_attr['userPrincipalName']))
+    else:
+        msg = f'ERROR: User {c_n} was not created: initials in use, or division not found'
+        result_list.append(get_result('ERROR', msg, c_n, action, email=''))
 
-            # result_list: Optional[list[dict]] = json.loads(conn.response_to_json())['entries']
-
-    return result
+    return result_list
 
 
-# def create_ad_user(username, forename, surname, division, new_password):
-#     with ldap_conn() as conn:
-#         attributes = get_attributes(username, forename, surname)
-#         user_dn = get_dn(username, division)
-#         print(user_dn, attributes)
-#         result = conn.add(dn=user_dn, object_class=OBJECT_CLASS, attributes=attributes)
-#         if not result:
-#             msg = f'ERROR: User {username} was not created: {conn.result.get("description")}'
-#             raise Exception(msg)
-#
-#         # unlock and set password
-#         conn.extend.microsoft.unlock_account(user=user_dn)
-#         conn.extend.microsoft.modify_password(user=user_dn,
-#                                               new_password=new_password,
-#                                               old_password=None)
-#         # Enable account - must happen after user password is set
-#         enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
-#         conn.modify(user_dn, changes=enable_account)
-#
-#         # Add groups
-#         conn.extend.microsoft.add_members_to_groups([user_dn], get_groups())
+def get_result(status, msg, user, action, email=''):
+    return {
+            'status': status,
+            'message': msg,
+            'action': action,
+            'email': email,
+            }
 
 
 def get_login(first_name, other_name, last_name):
@@ -362,7 +359,7 @@ if __name__ == '__main__':
     # print(get_division('0013 (Цех13 СВП )'))
     # print(get_division('УТ (ТЕСТ БТ )'))
     # print(get_division('УТ (ТЕСТ БТ )'))
-    print(get_division('МТ (ТЕСТ1 БО)'))
+    # print(get_division('МТ (ТЕСТ1 БО)'))
     # print(find_ad_groups('УТ (ТЕСТ1 БТ)'))
 
     # first, middle, last = 'Сергей', 'Олегович', 'Листратов'
@@ -393,13 +390,15 @@ if __name__ == '__main__':
     # print(next(a))
 
     first_name, other_name, last_name, initials, division, rol = 'Джеймс', 'Д', 'Бонд', '33999', 'МТ (ТЕСТ1 БО))', 'Специальный агент3'
-    first_name, other_name, last_name, initials, division, rol = 'Джейм', 't', 'Бон', '33998', 'МТ (ТЕСТ1 БО))', 'Специальный агент001'
+    first_name, other_name, last_name, initials, division, rol = 'Дмитрий', 'Петрович', 'Бон', '33998', 'УТ (ТЕСТ1 БТ )', 'Специальный агент002'
+    print(get_division('МТ (ТЕСТ1 БО)'))
     # print(find_ad_users(first_name, other_name, last_name, initials))
-    print(get_login(first_name, other_name, last_name))
+    # print(get_login(first_name, other_name, last_name))
     # print(transfer_ad_user(first_name, other_name, last_name, initials, division, rol))
+    print(dismiss_ad_user(first_name, other_name, last_name, initials))
 
-    create = create_ad_user(first_name, other_name, last_name, initials, division, rol)
-    print(create)
+    # create = create_ad_user(first_name, other_name, last_name, initials, division, rol)
+    # print(create)
 
     # initials = any(map(lambda i: 'initials' in i, find_user))
     # print(initials)
