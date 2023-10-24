@@ -42,14 +42,21 @@ def transfer_user(transferred_user: SAdUser, api_user: ApiUsers = Depends(get_cu
         raise NotAuthorizedAction
 
 
-@router.post('/dismiss')
-def dismiss_user(dismissed_user: SAdUser, api_user: ApiUsers = Depends(get_current_api_user)):
-    username = 'g.bond'
-    forename = dismissed_user.first_name
-    surname = dismissed_user.last_name
-    division = 'TEST33'
-    tabel_number = dismiss_user.tabel_number
+@router.post('/integration')
+def ad_integration(ad_user: SAdUser, api_user: ApiUsers = Depends(get_current_api_user)):
+    selector = {
+        'transfer': transfer_ad_user,
+        'dismiss': dismiss_ad_user,
+        'creat': create_ad_user
+    }
+    first_name = ad_user.first_name
+    other_name = ad_user.other_name
+    last_name = ad_user.last_name
+    initials = ad_user.tabel_number
+    division = ad_user.division
+    role = ad_user.role
+    action = ad_user.action
     if api_user:
-        return dismiss_ad_user(username, forename, surname, division, tabel_number)
+        return selector[action](first_name, other_name, last_name, initials, division, role)
     else:
         raise NotAuthorizedAction

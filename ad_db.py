@@ -7,8 +7,29 @@ from typing import Optional, Dict, Any
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
 
+
+# class AdZup:
+#     OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
+#     LDAP_BASE_DN = 'DC=rpz,DC=local'
+#     def __init__(self):
+#         pass
+#
+
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
 LDAP_BASE_DN = 'DC=rpz,DC=local'
+
+
+def director(jsn: dict):
+
+    selector = {
+        'transfer': transfer_ad_user,
+        'dismiss': dismiss_ad_user,
+        'creat': create_ad_user
+    }
+    selector[jsn['action']](**jsn)
+
+
+
 
 '''
 Функция find_ad_users ищет всех пользователей в AD по ФИО и табельному. 
@@ -39,14 +60,12 @@ def find_ad_users(
                                        'CommonName': ad_atr['attributes']['cn'],
                                        'initials': ad_atr['attributes']['initials'],
                                        'sAMAccountName': ad_atr['attributes']['sAMAccountName'],
-                                       # 'memberOf': ad_atr['attributes']['memberOf']
                                        }
                             find_usr_list.append(ad_dict)
                     else:
                         ad_dict = {'distinguishedName': ad_atr['attributes']['distinguishedName'],
                                    'CommonName': ad_atr['attributes']['cn'],
                                    'sAMAccountName': ad_atr['attributes']['sAMAccountName'],
-                                   # 'memberOf': ad_atr['attributes']['memberOf']
                                    }
                         find_usr_list.append(ad_dict)
                     if 'memberOf' in ad_atr['attributes'] and find_usr_list:
@@ -118,12 +137,11 @@ def find_ad_groups(
 
 
 def transfer_ad_user(
-        first_name: str, other_name: str, last_name: str, initials: str, new_division: str, new_role: str
-) -> Optional[list[dict]]:
-    action = 'TRANSFERRED'
+        first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str,
+        action='transfer') -> Optional[list[dict]]:
     result_list: Optional[list[dict]] = []
     find_user = find_ad_users(first_name, other_name, last_name, initials)
-    find_group = find_ad_groups(new_division)
+    find_group = find_ad_groups(division)
     if find_user and find_group:
         d_n_user = find_user[0]['distinguishedName']
         c_n_user = f'CN={find_user[0]["CommonName"]}'
@@ -135,12 +153,12 @@ def transfer_ad_user(
         removed_groups = []
         if 'memberOf' in find_user[0]:
             removed_groups = find_user[0]['memberOf']
-        msg_suss = f'OK. User {d_n_new} remove from {removed_groups} to {member_of} division with new role:{new_role}.'
+        msg_suss = f'OK. User {d_n_new} remove from {removed_groups} to {member_of} division with new role:{role}.'
         with ldap_conn() as conn:
             conn.modify_dn(d_n_user, c_n_user, new_superior=pre_d_n_new)
-            transfer_user_info = {'department': [(MODIFY_REPLACE, f'{new_division}')],
+            transfer_user_info = {'department': [(MODIFY_REPLACE, f'{division}')],
                                   'company': [(MODIFY_REPLACE, 'АО РПЗ')],
-                                  'title': [MODIFY_REPLACE, f'{new_role}']}
+                                  'title': [MODIFY_REPLACE, f'{role}']}
             conn.modify(d_n_new, changes=transfer_user_info)
 
             if removed_groups:
@@ -168,9 +186,9 @@ def transfer_ad_user(
 
 
 def dismiss_ad_user(
-        first_name: str, other_name: str, last_name: str, initials: str
+        first_name: str, other_name: str, last_name: str, initials: str, division='', role='', action='dismiss'
 ) -> Optional[list[dict]]:
-    action = 'DISMISSED'
+
     with ldap_conn() as conn:
         result_list: Optional[list[dict]] = []
         find_usr_list: Optional[list[dict]] = find_ad_users(first_name, other_name, last_name, initials)
@@ -214,9 +232,9 @@ c почтой пользовалеля для кадровой службы.
 '''
 
 def create_ad_user(
-        first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str
+        first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str, action='creat'
 ) -> Optional[list[dict]]:
-    action = 'CREATED'
+
     result_list: Optional[list[dict]] = []
     new_pass = 'Qwerty1'
     c_n = f'{first_name} {other_name} {last_name}'
@@ -390,7 +408,7 @@ if __name__ == '__main__':
     # print(next(a))
 
     first_name, other_name, last_name, initials, division, rol = 'Джеймс', 'Д', 'Бонд', '33999', 'МТ (ТЕСТ1 БО))', 'Специальный агент3'
-    first_name, other_name, last_name, initials, division, rol = 'Дмитрий', 'Петрович', 'Бон', '33998', 'УТ (ТЕСТ1 БТ )', 'Специальный агент002'
+    first_name, other_name, last_name, initials, division, rol, action = 'Дмитрий', 'Петрович', 'Бон', '33998', 'УТ (ТЕСТ1 БТ )', 'Специальный агент002', 'create'
     print(get_division('МТ (ТЕСТ1 БО)'))
     # print(find_ad_users(first_name, other_name, last_name, initials))
     # print(get_login(first_name, other_name, last_name))

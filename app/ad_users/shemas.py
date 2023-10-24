@@ -5,11 +5,13 @@ from pydantic import BaseModel, EmailStr
 
 class SAdUser(BaseModel):
 
+    action: str
     first_name: str
-    middle_name: str
+    other_name: str
     last_name: str
-    department: str
-    job_title: str
+    division: str
+    role: str
     tabel_number: int
+
 
 
