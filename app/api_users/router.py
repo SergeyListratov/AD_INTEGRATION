@@ -10,16 +10,15 @@ router = APIRouter(
     tags=['API auth']
 )
 
-'''
-Роутер для регистрации в API
-@router.post('/register')
-async def register_api_user(user_date: SApiUserAuth):
-    existing_user = await ApiUsersDAO.find_one_or_none(api_user_login_name=user_date.login)
-    if existing_user:
-        raise UserAlreadyExistsException
-    hashed_password = get_password_hash(user_date.password)
-    await ApiUsersDAO.add(api_user_login_name=user_date.login, hashed_api_user_password=hashed_password)
-'''
+
+# Роутер для регистрации в API
+# @router.post('/register')
+# async def register_api_user(user_date: SApiUserAuth):
+#     existing_user = await ApiUsersDAO.find_one_or_none(api_user_login_name=user_date.login)
+#     if existing_user:
+#         raise UserAlreadyExistsException
+#     hashed_password = get_password_hash(user_date.password)
+#     await ApiUsersDAO.add(api_user_login_name=user_date.login, hashed_api_user_password=hashed_password)
 
 
 @router.post('/login')

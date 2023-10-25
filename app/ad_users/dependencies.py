@@ -3,24 +3,22 @@ from ldap3 import Server, Connection, SUBTREE, ALL_ATTRIBUTES, Tls, MODIFY_REPLA
 from app.config import settings
 from transliterate import translit
 from typing import Optional, Dict, Any
+from datetime import datetime
 
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
-
-
 
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
 LDAP_BASE_DN = 'DC=rpz,DC=local'
 
 
 def director(jsn: dict):
-
     selector = {
         'transfer': transfer_ad_user,
         'dismiss': dismiss_ad_user,
-        'creat': create_ad_user
+        'create': create_ad_user
     }
-    selector[jsn['action']](**jsn)
+    return selector[jsn['action']](**jsn)
 
 
 '''
@@ -31,7 +29,7 @@ def director(jsn: dict):
 
 
 def find_ad_users(
-        first_name: str, other_name: str, last_name: str, initials: str, ldap_base_dn: str = LDAP_BASE_DN
+        first_name: str, other_name: str, last_name: str, number: str, ldap_base_dn: str = LDAP_BASE_DN
 ) -> Optional[list[dict]]:
     pattern_tuple: tuple = (f'{first_name} {other_name} {last_name}', f'{first_name} {last_name}')
     find_usr_list: Optional[list[dict]] = []
@@ -47,7 +45,7 @@ def find_ad_users(
             if ad_atr_list:
                 for ad_atr in ad_atr_list:
                     if 'initials' in ad_atr['attributes']:
-                        if ad_atr['attributes']['initials'] == initials:
+                        if ad_atr['attributes']['initials'] == number:
                             ad_dict = {'distinguishedName': ad_atr['attributes']['distinguishedName'],
                                        'CommonName': ad_atr['attributes']['cn'],
                                        'initials': ad_atr['attributes']['initials'],
@@ -129,10 +127,10 @@ def find_ad_groups(
 
 
 def transfer_ad_user(
-        first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str,
-        action='transfer') -> Optional[list[dict]]:
-    result_list: Optional[list[dict]] = []
-    find_user = find_ad_users(first_name, other_name, last_name, initials)
+        first_name: str, other_name: str, last_name: str, number: str, division: str, role: str,
+        action='transfer') -> dict[str, str | Any]:
+    user = f'{first_name}, {other_name}, {last_name}'
+    find_user = find_ad_users(first_name, other_name, last_name, number)
     find_group = find_ad_groups(division)
     if find_user and find_group:
         d_n_user = find_user[0]['distinguishedName']
@@ -145,12 +143,12 @@ def transfer_ad_user(
         removed_groups = []
         if 'memberOf' in find_user[0]:
             removed_groups = find_user[0]['memberOf']
-        msg_suss = f'OK. User {d_n_new} remove from {removed_groups} to {member_of} division with new role:{role}.'
         with ldap_conn() as conn:
             conn.modify_dn(d_n_user, c_n_user, new_superior=pre_d_n_new)
             transfer_user_info = {'department': [(MODIFY_REPLACE, f'{division}')],
                                   'company': [(MODIFY_REPLACE, 'АО РПЗ')],
-                                  'title': [MODIFY_REPLACE, f'{role}']}
+                                  'title': [MODIFY_REPLACE, f'{role}'],
+                                  'description': [MODIFY_REPLACE, f'{role}']}
             conn.modify(d_n_new, changes=transfer_user_info)
 
             if removed_groups:
@@ -158,13 +156,17 @@ def transfer_ad_user(
             ad_add_members_to_groups(conn, d_n_new, member_of)
             result = conn.result
         if result['result'] == 0:
-            result_list.append(
-                {'status': 'OK', 'msg': msg_suss})
+            msg = f'OK: User {user} was remove from {removed_groups} to {member_of} division with new role:{role}.'
+            result_dict = get_result('OK', user, action, msg, email='')
         else:
-            msg_fail = f'Error. User not transferred: {conn.result["message"]}'
-            result_list.append({'status': 'ERROR', 'msg': msg_fail, 'user': d_n_user})
+            msg = f'ERROR: User {user} not transferred: {conn.result["message"]}'
+            result_dict = get_result('ERROR', user, action, msg, email='')
 
-    return result_list
+    else:
+        msg = f'ERROR: User {user} was not transferred: user or division not found. find_ad_groups or find_ad_users get: []'
+        result_dict = get_result('ERROR', user, action, msg, email='')
+
+    return result_dict
 
 
 '''
@@ -178,20 +180,21 @@ def transfer_ad_user(
 
 
 def dismiss_ad_user(
-        first_name: str, other_name: str, last_name: str, initials: str, division='', role='', action='dismiss'
-) -> Optional[list[dict]]:
-
+        first_name: str, other_name: str, last_name: str, number: str, division='', role='', action='dismiss'
+) -> dict[str, str | Any]:
+    user = f'{first_name} {other_name} {last_name}'
     with ldap_conn() as conn:
-        result_list: Optional[list[dict]] = []
-        find_usr_list: Optional[list[dict]] = find_ad_users(first_name, other_name, last_name, initials)
+        find_usr_list: Optional[list[dict]] = find_ad_users(first_name, other_name, last_name, number)
         dism_password = 'Qwerty1234509876f'
         dism_unit = 'OU=Dismissed_users'
         if find_usr_list:
             for usr in find_usr_list:
                 d_n = usr["distinguishedName"]
-                msg_suss = f'OK. User {d_n.split(",")[0][3:]} blocked and move to Dismissed_users.'
                 disable_account = {"userAccountControl": (MODIFY_REPLACE, [514]),
-                                   'initials': [(MODIFY_REPLACE, '00000')]}
+                                   'initials': [(MODIFY_REPLACE, '00000')],
+                                   'description': [MODIFY_REPLACE,
+                                                   f'Увольнение: {datetime.now().replace(microsecond=0)}']
+                                   }
                 conn.modify(d_n, changes=disable_account)
                 conn.extend.microsoft.modify_password(user=d_n, new_password=dism_password, old_password=None)
                 d_n_list = d_n.split(",")
@@ -200,17 +203,16 @@ def dismiss_ad_user(
                 d_n_diss = ','.join(d_n_list)
                 conn.modify_dn(d_n, c_n, new_superior=d_n_diss)
                 if conn.result['result'] == 0:
-                    result_list.append(
-                        {'status': 'OK', 'msg': msg_suss, 'user': d_n, 'dismissed_user': f'{c_n},{d_n_diss}'})
+                    msg = f'OK: User {user} was dismissed and blocked in path: {d_n_diss}'
+                    result_dict = get_result('OK', user, action, msg, email='')
                 else:
-                    msg_fail = f'Error. User not blocked: {conn.result["message"]}'
-                    result_list.append({'status': 'ERROR', 'msg': msg_fail, 'user': d_n, 'dismissed_user': d_n_diss})
-
-            return result_list
+                    msg = f'ERROR: User {user} not blocked: {conn.result["message"]}'
+                    result_dict = get_result('ERROR', user, action, msg, email='')
         else:
-            msg_fail = f'Error. User {first_name} {other_name}, {last_name} not found.'
-            result_list.append({'status': 'ERROR', 'msg': msg_fail, 'user': None, 'dismissed_user': None})
-            return result_list
+            msg = f'ERROR: User {user} not found. find_ad_users get: [], Name or tabel_number not found'
+            result_dict = get_result('ERROR', user, action, msg, email='')
+
+    return result_dict
 
 
 '''
@@ -223,14 +225,14 @@ def dismiss_ad_user(
 c почтой пользовалеля для кадровой службы.
 '''
 
-def create_ad_user(
-        first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str, action='creat'
-) -> Optional[list[dict]]:
 
-    result_list: Optional[list[dict]] = []
+def create_ad_user(
+        first_name: str, other_name: str, last_name: str, number: str, division: str, role: str, action='creat'
+) -> dict[str, str | Any]:
+    user = f'{first_name}, {other_name}, {last_name}'
     new_pass = 'Qwerty1'
     c_n = f'{first_name} {other_name} {last_name}'
-    find_user = find_ad_users(first_name, other_name, last_name, initials)
+    find_user = find_ad_users(first_name, other_name, last_name, number)
     init = any(map(lambda i: 'initials' in i, find_user))
     find_group = find_ad_groups(division)
     login = get_login(first_name, other_name, last_name)
@@ -248,15 +250,15 @@ def create_ad_user(
             'department': division,
             'company': 'АО РПЗ',
             'title': role,
-            'initials': initials,
+            'initials': number,
             'description': role
         }
         with ldap_conn() as conn:
             result = conn.add(dn=new_user_dn, object_class=OBJECT_CLASS, attributes=user_ad_attr)
             if not result:
                 msg = f'ERROR: User {new_user_dn} was not created: {conn.result.get("description")}'
-                result_list.append(get_result('ERRORS', msg, new_user_dn, action, email=''))
-                return result_list
+                result_dict = get_result('ERRORS', user, action, msg, email='')
+                return result_dict
 
             # unlock and set password
             conn.extend.microsoft.unlock_account(user=new_user_dn)
@@ -264,26 +266,27 @@ def create_ad_user(
                                                   new_password=new_pass,
                                                   old_password=None)
             # Enable account - must happen after user password is set
-            enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
-            conn.modify(new_user_dn, changes=enable_account)
+            # enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
+            # conn.modify(new_user_dn, changes=enable_account)
             # Add groups
             conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
             msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
-            result_list.append(get_result('OK', msg, new_user_dn, action, email=user_ad_attr['userPrincipalName']))
+            result_dict = get_result('OK', user, action, msg, email=user_ad_attr['userPrincipalName'])
     else:
-        msg = f'ERROR: User {c_n} was not created: initials in use, or division not found'
-        result_list.append(get_result('ERROR', msg, c_n, action, email=''))
+        msg = f'ERROR: User {c_n} was not created: tabel_number in use, or division not found. find_ad_groups or find_ad_users get: []'
+        result_dict = get_result('ERROR', user, action, msg, email='')
 
-    return result_list
+    return result_dict
 
 
-def get_result(status, msg, user, action, email=''):
+def get_result(status, user, action, msg, email=''):
     return {
-            'status': status,
-            'message': msg,
-            'action': action,
-            'email': email,
-            }
+        'status': status,
+        'user': user,
+        'action': action,
+        'message': msg,
+        'email': email,
+    }
 
 
 def get_login(first_name, other_name, last_name):
@@ -306,13 +309,13 @@ def ldap_conn():
     return Connection(server, user=settings.AD_USER, password=settings.AD_PASS, auto_bind=True)
 
 
-def get_dn(first_name: str, other_name: str, last_name: str, initials: str, division: str):
+def get_dn(first_name: str, other_name: str, last_name: str, number: str, division: str):
     c_n = f'{first_name} {other_name} {last_name}'
     return f"CN={c_n},OU=New_users,OU={division},DC=rpz,DC=local"
 
 
 def get_attributes(
-        first_name: str, other_name: str, last_name: str, initials: str, division: str, role: str
+        first_name: str, other_name: str, last_name: str, number: str, division: str, role: str
 ) -> dict[str, str | Any]:
     c_n = f'{first_name} {other_name} {last_name}'
     username = login_generator(first_name, other_name, last_name)
@@ -327,12 +330,6 @@ def get_attributes(
         'company': 'АО РПЗ',
         'title': role
     }
-
-
-def get_groups():
-    postfix = ',OU=Roles,OU=TEST33,DC=rpz,DC=local'
-    # return [f'CN=ConnectDB_1C_83_01_TASKS_TEST{postfix}']
-    return [f'CN=TEST33_TU_01{postfix}']
 
 
 def get_translit(text: str) -> str:
@@ -363,6 +360,3 @@ def login_generator(first_name: str, other_name: str, last_name: str) -> str:
     )
     for login in login_tuple:
         yield login
-
-
-

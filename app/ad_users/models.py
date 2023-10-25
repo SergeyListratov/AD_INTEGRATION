@@ -19,10 +19,11 @@ class AdUsers(Base):
     login_name: Mapped[Optional[str]]
     division: Mapped[str]
     role: Mapped[str]
-    tabel_number: Mapped[int]
+    number: Mapped[str]
     action_data: Mapped[Optional[timestamp]] = mapped_column(default=datetime.utcnow())
     # action_data: Mapped[Date] = mapped_column(Date)
     action: Mapped[str]
+    massage: Mapped[str]
 
     def __str__(self):
         return f"User AD {self.login_name}"
