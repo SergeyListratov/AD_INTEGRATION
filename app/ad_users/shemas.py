@@ -1,6 +1,7 @@
 from datetime import date
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
+from fastapi import Query
 
 
 class SAdUser(BaseModel):
@@ -11,7 +12,7 @@ class SAdUser(BaseModel):
     number: str
     division: str
     role: str
-    action: str
+    action: str = Query(pattern='dismiss|create|transfer')
 
 
 class SAdUserResponse(BaseModel):

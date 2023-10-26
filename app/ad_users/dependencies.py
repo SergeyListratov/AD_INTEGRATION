@@ -12,6 +12,10 @@ OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
 LDAP_BASE_DN = 'DC=rpz,DC=local'
 
 
+'''
+Функция director  через фабрику функций запускает нужную функцию по ключу "action" из POST запроса 
+'''
+
 def director(jsn: dict):
     selector = {
         'transfer': transfer_ad_user,
@@ -360,3 +364,6 @@ def login_generator(first_name: str, other_name: str, last_name: str) -> str:
     )
     for login in login_tuple:
         yield login
+
+
+

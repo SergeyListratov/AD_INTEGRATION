@@ -20,17 +20,17 @@ def ad_integration(ad_user: SAdUser, response_model: SAdUserResponse, api_user: 
     selector = {
         'transfer': transfer_ad_user,
         'dismiss': dismiss_ad_user,
-        'creat': create_ad_user
+        'create': create_ad_user
     }
     first_name = ad_user.first_name
     other_name = ad_user.other_name
     last_name = ad_user.last_name
-    initials = ad_user.tabel_number
+    number = ad_user.number
     division = ad_user.division
     role = ad_user.role
     action = ad_user.action
     if api_user:
-        return selector[action](first_name, other_name, last_name, initials, division, role)
+        return selector[action](first_name, other_name, last_name, number, division, role)
     else:
         raise NotAuthorizedAction
 
