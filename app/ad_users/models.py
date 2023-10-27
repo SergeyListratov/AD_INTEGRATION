@@ -25,6 +25,7 @@ class AdUsers(Base):
     # action_data: Mapped[Date] = mapped_column(Date)
     action: Mapped[str]
     massage: Mapped[str]
+    email: Mapped[str]
 
     def __str__(self):
         return f"User AD {self.login_name}"

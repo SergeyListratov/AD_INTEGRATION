@@ -9,6 +9,7 @@ from app.api_users.shemas import SApiUserAuth
 from app.api_users.dao import ApiUsersDAO
 from app.exeptions import IncorrectEmailOrPassword, NotAuthorizedAction
 from app.ad_users.dependencies import create_ad_user, transfer_ad_user, dismiss_ad_user
+
 router = APIRouter(
     prefix='/ad_user',
     tags=['API add_transfer_dismiss']
@@ -16,25 +17,34 @@ router = APIRouter(
 
 
 @router.post('/integration')
-def ad_integration(ad_user: SAdUser, response_model: SAdUserResponse, api_user: ApiUsers = Depends(get_current_api_user)):
+def ad_integration(ad_user: SAdUser, response_model: SAdUserResponse,
+                   api_user: ApiUsers = Depends(get_current_api_user)):
     selector = {
         'transfer': transfer_ad_user,
         'dismiss': dismiss_ad_user,
         'create': create_ad_user
     }
-    first_name = ad_user.first_name
-    other_name = ad_user.other_name
-    last_name = ad_user.last_name
-    number = ad_user.number
-    division = ad_user.division
-    role = ad_user.role
-    action = ad_user.action
+
+    # AdUsersDAO.first_name = first_name
+    # AdUsersDAO.other_name = other_name
+    # AdUsersDAO.last_name = last_name
+    # AdUsersDAO.number = number
+    # AdUsersDAO.division = division
+    # AdUsersDAO.role = role
+    # AdUsersDAO.action = action
+
+    AdUsersDAO.first_name = ad_user.first_name
+    AdUsersDAO.other_name = ad_user.other_name
+    AdUsersDAO.last_name = ad_user.last_name
+    AdUsersDAO.number = ad_user.number
+    AdUsersDAO.division = ad_user.division
+    AdUsersDAO.role = ad_user.role
+    AdUsersDAO.action = ad_user.action
     if api_user:
-        return selector[action](first_name, other_name, last_name, number, division, role)
+        return selector[AdUsersDAO.action](AdUsersDAO.first_name, AdUsersDAO.other_name, AdUsersDAO.last_name,
+                                           AdUsersDAO.number, AdUsersDAO.division, AdUsersDAO.role)
     else:
         raise NotAuthorizedAction
-
-
 
 # @router.post('/add')
 # def add_user(new_ad_user: SAdUser, api_user: ApiUsers = Depends(get_current_api_user)):
@@ -60,6 +70,3 @@ def ad_integration(ad_user: SAdUser, response_model: SAdUserResponse, api_user: 
 #         return transfer_ad_user(username, forename, surname, division, tabel_number)
 #     else:
 #         raise NotAuthorizedAction
-
-
-
