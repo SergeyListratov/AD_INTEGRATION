@@ -18,9 +18,6 @@ class SAdUser(BaseModel):
 class SAdUserResponse(BaseModel):
 
     status: str
-    user: str
-    action: str
-    massage: dict
     email: str
 
 

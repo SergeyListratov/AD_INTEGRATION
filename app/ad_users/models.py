@@ -12,7 +12,8 @@ class AdUsers(Base):
     __tablename__ = "ad_users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    api_user_id: Mapped[int]
+    # api_user_id: Mapped[int]
+    status: Mapped[int]
     first_name: Mapped[str]
     other_name: Mapped[str]
     last_name: Mapped[str]
