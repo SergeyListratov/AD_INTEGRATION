@@ -5,6 +5,7 @@ from transliterate import translit
 from typing import Optional, Dict, Any
 from datetime import datetime
 from app.ad_users.dao import AdUsersDAO
+import asyncio
 
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
@@ -212,9 +213,6 @@ def dismiss_ad_user(
         find_usr_list: Optional[list[dict]] = find_ad_users(first_name, other_name, last_name, number)
         dism_password = 'Qwerty1234509876f'
         dism_unit = 'OU=Dismissed_users'
-
-        print(find_usr_list)
-
         if find_usr_list:
             for usr in find_usr_list:
                 d_n = usr["distinguishedName"]
@@ -322,7 +320,10 @@ def create_ad_user(
         # result_dict = get_result('ERROR', user, action, msg, email='')
         AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
 
-    # await AdUsersDAO.add()
+    # loop = asyncio.get_event_loop()
+    # loop.run_until_complete(AdUsersDAO.add())
+    # loop.close()
+
     result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
     return result_dict
 
