@@ -26,6 +26,7 @@ class AdUsers(Base):
     action: Mapped[str]
     massage: Mapped[str]
     email: Mapped[str]
+    source: Mapped[str]
 
     def __str__(self):
         return f"User AD {self.login_name}"

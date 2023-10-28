@@ -18,6 +18,7 @@ class SAdUser(BaseModel):
 class SAdUserResponse(BaseModel):
 
     status: str
+    message: str
     email: str
 
 

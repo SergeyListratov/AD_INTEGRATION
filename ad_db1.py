@@ -4,6 +4,7 @@ from app.config import settings
 from transliterate import translit
 from typing import Optional, Dict, Any
 from datetime import datetime
+from app.ad_users.dao import AdUsersDAO
 
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
@@ -11,10 +12,10 @@ from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_fro
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
 LDAP_BASE_DN = 'DC=rpz,DC=local'
 
-
 '''
 Функция director  через фабрику функций запускает нужную функцию по ключу "action" из POST запроса 
 '''
+
 
 def director(jsn: dict):
     selector = {
@@ -130,13 +131,21 @@ def find_ad_groups(
 '''
 
 
-def transfer_ad_user(
-        first_name: str, other_name: str, last_name: str, number: str, division: str, role: str,
-        action='transfer') -> dict[str, str | Any]:
+def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: str, division: str, role: str,
+                     action='transfer') -> dict[str, str | Any]:
+    # AdUsersDAO.first_name = first_name
+    # AdUsersDAO.other_name = other_name
+    # AdUsersDAO.last_name = last_name
+    # AdUsersDAO.number = number
+    # AdUsersDAO.division = division
+    # AdUsersDAO.role = role
+    # AdUsersDAO.action = action
+
     user = f'{first_name}, {other_name}, {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
     find_group = find_ad_groups(division)
     if find_user and find_group:
+        user = find_user[0]['sAMAccountName']
         d_n_user = find_user[0]['distinguishedName']
         c_n_user = f'CN={find_user[0]["CommonName"]}'
         pre_d_n_new = find_group[0]['pre_distinguishedName']
@@ -161,15 +170,19 @@ def transfer_ad_user(
             result = conn.result
         if result['result'] == 0:
             msg = f'OK: User {user} was remove from {removed_groups} to {member_of} division with new role:{role}.'
-            result_dict = get_result('OK', user, action, msg, email='')
+            AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'OK', 'OK'
+            # result_dict = get_result('OK', user, action, msg, email='')
         else:
             msg = f'ERROR: User {user} not transferred: {conn.result["message"]}'
-            result_dict = get_result('ERROR', user, action, msg, email='')
+            AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
+            # result_dict = get_result('ERROR', user, action, msg, email='')
 
     else:
         msg = f'ERROR: User {user} was not transferred: user or division not found. find_ad_groups or find_ad_users get: []'
-        result_dict = get_result('ERROR', user, action, msg, email='')
+        AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', ''
+        # result_dict = get_result('ERROR', user, action, msg, email='')
 
+    result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
     return result_dict
 
 
@@ -186,11 +199,22 @@ def transfer_ad_user(
 def dismiss_ad_user(
         first_name: str, other_name: str, last_name: str, number: str, division='', role='', action='dismiss'
 ) -> dict[str, str | Any]:
+    # AdUsersDAO.first_name = first_name
+    # AdUsersDAO.other_name = other_name
+    # AdUsersDAO.last_name = last_name
+    # AdUsersDAO.number = number
+    # AdUsersDAO.division = division
+    # AdUsersDAO.role = role
+    # AdUsersDAO.action = action
+
     user = f'{first_name} {other_name} {last_name}'
     with ldap_conn() as conn:
         find_usr_list: Optional[list[dict]] = find_ad_users(first_name, other_name, last_name, number)
         dism_password = 'Qwerty1234509876f'
         dism_unit = 'OU=Dismissed_users'
+
+        print(find_usr_list)
+
         if find_usr_list:
             for usr in find_usr_list:
                 d_n = usr["distinguishedName"]
@@ -208,13 +232,19 @@ def dismiss_ad_user(
                 conn.modify_dn(d_n, c_n, new_superior=d_n_diss)
                 if conn.result['result'] == 0:
                     msg = f'OK: User {user} was dismissed and blocked in path: {d_n_diss}'
-                    result_dict = get_result('OK', user, action, msg, email='')
+                    # result_dict = get_result('OK', user, action, msg, email='')
+                    AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'OK', 'OK'
+
                 else:
                     msg = f'ERROR: User {user} not blocked: {conn.result["message"]}'
-                    result_dict = get_result('ERROR', user, action, msg, email='')
+                    # result_dict = get_result('ERROR', user, action, msg, email='')
+                    AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
         else:
             msg = f'ERROR: User {user} not found. find_ad_users get: [], Name or tabel_number not found'
-            result_dict = get_result('ERROR', user, action, msg, email='')
+            # result_dict = get_result('ERROR', user, action, msg, email='')
+            AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
+
+    result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
 
     return result_dict
 
@@ -233,7 +263,14 @@ c почтой пользовалеля для кадровой службы.
 def create_ad_user(
         first_name: str, other_name: str, last_name: str, number: str, division: str, role: str, action='creat'
 ) -> dict[str, str | Any]:
-    user = f'{first_name}, {other_name}, {last_name}'
+    # AdUsersDAO.first_name = first_name
+    # AdUsersDAO.other_name = other_name
+    # AdUsersDAO.last_name = last_name
+    # AdUsersDAO.number = number
+    # AdUsersDAO.division = division
+    # AdUsersDAO.role = role
+    # AdUsersDAO.action = action
+
     new_pass = 'Qwerty1'
     c_n = f'{first_name} {other_name} {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
@@ -261,7 +298,9 @@ def create_ad_user(
             result = conn.add(dn=new_user_dn, object_class=OBJECT_CLASS, attributes=user_ad_attr)
             if not result:
                 msg = f'ERROR: User {new_user_dn} was not created: {conn.result.get("description")}'
-                result_dict = get_result('ERRORS', user, action, msg, email='')
+                # result_dict = get_result('ERRORS', user, action, msg, email='')
+                AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
+                result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
                 return result_dict
 
             # unlock and set password
@@ -275,21 +314,24 @@ def create_ad_user(
             # Add groups
             conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
             msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
-            result_dict = get_result('OK', user, action, msg, email=user_ad_attr['userPrincipalName'])
+            # result_dict = get_result('OK', user, action, msg, email=user_ad_attr['userPrincipalName'])
+            AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'OK', msg, user_ad_attr['userPrincipalName']
     else:
-        msg = f'ERROR: User {c_n} was not created: tabel_number in use, or division not found. find_ad_groups or find_ad_users get: []'
-        result_dict = get_result('ERROR', user, action, msg, email='')
+        msg = (f'ERROR: User {c_n} was not created: tabel_number in use, or division not found. '
+               f'find_ad_groups or find_ad_users get: []')
+        # result_dict = get_result('ERROR', user, action, msg, email='')
+        AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
 
+    # await AdUsersDAO.add()
+    result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
     return result_dict
 
 
-def get_result(status, user, action, msg, email=''):
+def get_result(status, msg, email):
     return {
         'status': status,
-        'user': user,
-        'action': action,
         'message': msg,
-        'email': email,
+        'email': email
     }
 
 
@@ -393,7 +435,7 @@ if __name__ == '__main__':
         "last_name": "Бондд",
         "number": "33997",
         "division": "МТ (ТЕСТ1 БО)",
-        "role": "Спецагент007",
+        "role": "Спецагент 007",
         "action": "transfer"
     }
 
@@ -403,7 +445,7 @@ if __name__ == '__main__':
         "last_name": "Бондд",
         "number": "33997",
         "division": "МТ (ТЕСТ1 БО)",
-        "role": "Спецагент007",
+        "role": "Спецагент 007",
         "action": "dismiss"
     }
 

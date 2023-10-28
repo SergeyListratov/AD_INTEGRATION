@@ -271,7 +271,6 @@ def create_ad_user(
     # AdUsersDAO.role = role
     # AdUsersDAO.action = action
 
-    user = f'{first_name}, {other_name}, {last_name}'
     new_pass = 'Qwerty1'
     c_n = f'{first_name} {other_name} {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
@@ -300,7 +299,7 @@ def create_ad_user(
             if not result:
                 msg = f'ERROR: User {new_user_dn} was not created: {conn.result.get("description")}'
                 # result_dict = get_result('ERRORS', user, action, msg, email='')
-                AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
+                AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
                 result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
                 return result_dict
 
@@ -316,13 +315,14 @@ def create_ad_user(
             conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
             msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
             # result_dict = get_result('OK', user, action, msg, email=user_ad_attr['userPrincipalName'])
-            AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'OK', user_ad_attr['userPrincipalName']
+            AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'OK', msg, user_ad_attr['userPrincipalName']
     else:
         msg = (f'ERROR: User {c_n} was not created: tabel_number in use, or division not found. '
                f'find_ad_groups or find_ad_users get: []')
         # result_dict = get_result('ERROR', user, action, msg, email='')
         AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
 
+    # await AdUsersDAO.add()
     result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
     return result_dict
 

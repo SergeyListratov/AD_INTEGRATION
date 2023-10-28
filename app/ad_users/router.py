@@ -40,6 +40,7 @@ def ad_integration(ad_user: SAdUser, response_model: SAdUserResponse,
     AdUsersDAO.division = ad_user.division
     AdUsersDAO.role = ad_user.role
     AdUsersDAO.action = ad_user.action
+    AdUsersDAO.source = 'API'
     if api_user:
         return selector[AdUsersDAO.action](AdUsersDAO.first_name, AdUsersDAO.other_name, AdUsersDAO.last_name,
                                            AdUsersDAO.number, AdUsersDAO.division, AdUsersDAO.role)
