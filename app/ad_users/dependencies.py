@@ -5,7 +5,7 @@ from transliterate import translit
 from typing import Optional, Dict, Any
 from datetime import datetime
 from app.ad_users.dao import AdUsersDAO
-import asyncio
+from asyncio import set_event_loop, new_event_loop
 
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
@@ -134,14 +134,6 @@ def find_ad_groups(
 
 def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: str, division: str, role: str,
                      action='transfer') -> dict[str, str | Any]:
-    # AdUsersDAO.first_name = first_name
-    # AdUsersDAO.other_name = other_name
-    # AdUsersDAO.last_name = last_name
-    # AdUsersDAO.number = number
-    # AdUsersDAO.division = division
-    # AdUsersDAO.role = role
-    # AdUsersDAO.action = action
-
     user = f'{first_name}, {other_name}, {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
     find_group = find_ad_groups(division)
@@ -171,17 +163,14 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
             result = conn.result
         if result['result'] == 0:
             msg = f'OK: User {user} was remove from {removed_groups} to {member_of} division with new role:{role}.'
-            AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'OK', 'OK'
-            # result_dict = get_result('OK', user, action, msg, email='')
+            AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'OK', msg, 'OK'
         else:
             msg = f'ERROR: User {user} not transferred: {conn.result["message"]}'
-            AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
-            # result_dict = get_result('ERROR', user, action, msg, email='')
+            AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'ERROR', msg, 'ERROR'
 
     else:
         msg = f'ERROR: User {user} was not transferred: user or division not found. find_ad_groups or find_ad_users get: []'
-        AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', ''
-        # result_dict = get_result('ERROR', user, action, msg, email='')
+        AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'ERROR', msg, 'ERROR'
 
     result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
     return result_dict
@@ -200,14 +189,6 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
 def dismiss_ad_user(
         first_name: str, other_name: str, last_name: str, number: str, division='', role='', action='dismiss'
 ) -> dict[str, str | Any]:
-    # AdUsersDAO.first_name = first_name
-    # AdUsersDAO.other_name = other_name
-    # AdUsersDAO.last_name = last_name
-    # AdUsersDAO.number = number
-    # AdUsersDAO.division = division
-    # AdUsersDAO.role = role
-    # AdUsersDAO.action = action
-
     user = f'{first_name} {other_name} {last_name}'
     with ldap_conn() as conn:
         find_usr_list: Optional[list[dict]] = find_ad_users(first_name, other_name, last_name, number)
@@ -230,17 +211,14 @@ def dismiss_ad_user(
                 conn.modify_dn(d_n, c_n, new_superior=d_n_diss)
                 if conn.result['result'] == 0:
                     msg = f'OK: User {user} was dismissed and blocked in path: {d_n_diss}'
-                    # result_dict = get_result('OK', user, action, msg, email='')
-                    AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'OK', 'OK'
+                    AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'OK', msg, 'OK'
 
                 else:
                     msg = f'ERROR: User {user} not blocked: {conn.result["message"]}'
-                    # result_dict = get_result('ERROR', user, action, msg, email='')
-                    AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
+                    AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'ERROR', msg, 'ERROR'
         else:
             msg = f'ERROR: User {user} not found. find_ad_users get: [], Name or tabel_number not found'
-            # result_dict = get_result('ERROR', user, action, msg, email='')
-            AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
+            AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'ERROR', msg, 'ERROR'
 
     result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
 
@@ -261,14 +239,6 @@ c почтой пользовалеля для кадровой службы.
 def create_ad_user(
         first_name: str, other_name: str, last_name: str, number: str, division: str, role: str, action='creat'
 ) -> dict[str, str | Any]:
-    # AdUsersDAO.first_name = first_name
-    # AdUsersDAO.other_name = other_name
-    # AdUsersDAO.last_name = last_name
-    # AdUsersDAO.number = number
-    # AdUsersDAO.division = division
-    # AdUsersDAO.role = role
-    # AdUsersDAO.action = action
-
     new_pass = 'Qwerty1'
     c_n = f'{first_name} {other_name} {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
@@ -296,8 +266,7 @@ def create_ad_user(
             result = conn.add(dn=new_user_dn, object_class=OBJECT_CLASS, attributes=user_ad_attr)
             if not result:
                 msg = f'ERROR: User {new_user_dn} was not created: {conn.result.get("description")}'
-                # result_dict = get_result('ERRORS', user, action, msg, email='')
-                AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
+                AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'ERROR', msg, 'ERROR'
                 result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
                 return result_dict
 
@@ -312,17 +281,18 @@ def create_ad_user(
             # Add groups
             conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
             msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
-            # result_dict = get_result('OK', user, action, msg, email=user_ad_attr['userPrincipalName'])
             AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'OK', msg, user_ad_attr['userPrincipalName']
     else:
         msg = (f'ERROR: User {c_n} was not created: tabel_number in use, or division not found. '
                f'find_ad_groups or find_ad_users get: []')
-        # result_dict = get_result('ERROR', user, action, msg, email='')
-        AdUsersDAO.msg, AdUsersDAO.status, AdUsersDAO.email = msg, 'ERROR', 'ERROR'
+        AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email = 'ERROR', msg, 'ERROR'
 
-    # loop = asyncio.get_event_loop()
-    # loop.run_until_complete(AdUsersDAO.add())
+    # loop = new_event_loop()
+    # set_event_loop(loop)
+    # # loop.create_task(AdUsersDAO.add(email='1@1.ru'))
+    # loop.run_until_complete(AdUsersDAO.add(email='1@1.ru'))
     # loop.close()
+    # # print(AdUsersDAO.model_dump())
 
     result_dict = get_result(AdUsersDAO.status, AdUsersDAO.msg, AdUsersDAO.email)
     return result_dict
