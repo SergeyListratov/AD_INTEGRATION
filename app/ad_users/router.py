@@ -25,25 +25,21 @@ async def ad_integration(ad_user: SAdUser, response_model: SAdUserResponse,
         'dismiss': dismiss_ad_user,
         'create': create_ad_user
     }
-    AdUsersDAO.first_name = ad_user.first_name
-    AdUsersDAO.other_name = ad_user.other_name
-    AdUsersDAO.last_name = ad_user.last_name
-    AdUsersDAO.number = ad_user.number
-    AdUsersDAO.division = ad_user.division
-    AdUsersDAO.division = ad_user.division
-    AdUsersDAO.role = ad_user.role
-    AdUsersDAO.action = ad_user.action
-    AdUsersDAO.source = 'API'
+    AdUsersDAO.data['first_name'] = ad_user.first_name
+    AdUsersDAO.data['other_name'] = ad_user.other_name
+    AdUsersDAO.data['last_name'] = ad_user.last_name
+    AdUsersDAO.data['number'] = ad_user.number
+    AdUsersDAO.data['division'] = ad_user.division
+    AdUsersDAO.data['role'] = ad_user.role
+    AdUsersDAO.data['action'] = ad_user.action
+    AdUsersDAO.data['source'] = 'API'
 
     if api_user:
-        response_model = selector[AdUsersDAO.action](AdUsersDAO.first_name, AdUsersDAO.other_name, AdUsersDAO.last_name,
-                                                     AdUsersDAO.number, AdUsersDAO.division, AdUsersDAO.role)
-        #
-        # loop = asyncio.get_event_loop()
-        # loop.run_until_complete(AdUsersDAO.add(email=AdUsersDAO.email))
+        response_model = selector[AdUsersDAO.data['action']](AdUsersDAO.data['first_name'], AdUsersDAO.data['other_name'],
+                                                             AdUsersDAO.data['last_name'], AdUsersDAO.data['number'],
+                                                             AdUsersDAO.data['division'], AdUsersDAO.data['role'])
 
-        # await AdUsersDAO.add()
-
+        await AdUsersDAO.add()
         return response_model
 
     else:

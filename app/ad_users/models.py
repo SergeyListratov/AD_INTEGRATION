@@ -23,7 +23,7 @@ class AdUsers(Base):
     action_data: Mapped[Optional[timestamp]] = mapped_column(default=datetime.utcnow())
     # action_data: Mapped[Date] = mapped_column(Date)
     action: Mapped[str]
-    massage: Mapped[str]
+    message: Mapped[str]
     email: Mapped[str]
     source: Mapped[str]
 

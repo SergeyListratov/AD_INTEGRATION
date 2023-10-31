@@ -13,22 +13,22 @@ class UserSearchArgs:
     def __init__(
         self,
         first_name: str,
-        middle_name: str,
+        other_name: str,
         last_name: str,
         login_name: str,
-        department: str,
-        job_title: str,
-        location: str,
-        tabel_number: int
+        division: str,
+        role: str,
+        action: str,
+        number: int
     ):
         self.first_name = first_name,
-        self.middle_name = middle_name,
+        self.other_name = other_name,
         self.last_name = last_name,
         self.login_name = login_name,
-        self.department = department,
-        self.job_title = job_title,
-        self.location = location,
-        self.tabel_number = tabel_number
+        self.division = division,
+        self.role = role,
+        self.action = action,
+        self.tabel_number = number
 
 
 
