@@ -7,7 +7,8 @@ from app.config import settings
 from transliterate import translit
 from typing import Optional, Dict, Any
 from datetime import datetime
-from asyncio import set_event_loop, new_event_loop
+
+import csv
 
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
@@ -135,7 +136,7 @@ def find_ad_groups(
 
 
 def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: str, division: str, role: str,
-                     action='transfer') -> dict[str, str | Any]:
+                     action='transfer', group_legacy=False) -> dict[str, str | Any]:
     user = f'{first_name}, {other_name}, {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
     find_group = find_ad_groups(division)
@@ -159,8 +160,10 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
                                   'description': [MODIFY_REPLACE, f'{role}']}
             conn.modify(d_n_new, changes=transfer_user_info)
 
-            if removed_groups:
-                ad_remove_members_from_groups(conn, d_n_new, removed_groups, fix=False)
+            if not group_legacy:
+                if removed_groups:                                                                # Add to group with delete
+                    ad_remove_members_from_groups(conn, d_n_new, removed_groups, fix=False)       #
+
             ad_add_members_to_groups(conn, d_n_new, member_of)
             result = conn.result
         if result['result'] == 0:
@@ -326,6 +329,28 @@ def get_dn(first_name: str, other_name: str, last_name: str, number: str, divisi
     return f"CN={c_n},OU=New_users,OU={division},DC=rpz,DC=local"
 
 
+
+def get_division_dn(main: str, division: str):
+    return f"CN={division},OU=Divisions,OU={main},DC=rpz,DC=local"
+
+
+def get_infra_ou(main: str):
+    return [
+        f"OU=Divisions,OU={main},DC=rpz,DC=local", f"OU=Roles,OU={main},DC=rpz,DC=local",
+        f"OU=New_users,OU={main},DC=rpz,DC=local", f"OU=Dismissed_users,OU={main},DC=rpz,DC=local"
+    ]
+
+def set_div_descript(div, descr):
+    pass
+
+def set_main_descript(main, div, descr):
+    if main == div:
+        dn = f"OU=New_users,OU={main},DC=rpz,DC=local"
+
+
+
+
+
 def get_attributes(
         first_name: str, other_name: str, last_name: str, number: str, division: str, role: str
 ) -> dict[str, str | Any]:
@@ -374,10 +399,30 @@ def login_generator(first_name: str, other_name: str, last_name: str) -> str:
         yield login
 
 
+def file_to_file(file_in, file_out):
+    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
+        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+            for st in file:
+                new_st = get_division(st)
+                new_file.write(new_st)
+
+
+
+
 
 if __name__ == '__main__':
     # print(get_division('УТ (ТЕСТ БТ )'))
-    # print(get_division('МТ (ТЕСТ1 БО)'))
+    # print(get_division('Р075 (СР )'))
+
+    file_in = 'buh.csv'
+    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
+        for st in file:
+            ou, cn, desc = get_division(st.split(';')[0]), get_division(st.split(';')[1]), st.split(';')[2].rstrip('\n')
+            print(ou, cn, desc)
+
+
+
+
 
     # first_name, other_name, last_name, initials, division, rol, action = 'Дмитрий', 'Петрович', 'Бонl', '33991', 'УТ (ТЕСТ1 БТ )', 'Специальный агент000', 'create'
     # first_name, other_name, last_name, initials, division, rol, action = 'Дмитрий', 'Петрович', 'Бонl', '33991', 'МТ (ТЕСТ1 БО)', 'Специальный агент007', 'transfer'
@@ -395,14 +440,13 @@ if __name__ == '__main__':
 
     }
 
-
     jsn2 = {
         "first_name": "Дмитрий",
         "other_name": "Петрович",
         "last_name": "Бондд",
         "number": "33997",
         "division": "МТ (ТЕСТ1 БО)",
-        "role": "Спецагент 007",
+        "role": "Спецагент007",
         "action": "transfer"
     }
 
@@ -416,6 +460,5 @@ if __name__ == '__main__':
         "action": "dismiss"
     }
 
-
-ad = director(jsn1)
-print(ad)
+# ad = director(jsn3)
+# print(ad)

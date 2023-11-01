@@ -7,7 +7,6 @@ from app.config import settings
 from transliterate import translit
 from typing import Optional, Dict, Any
 from datetime import datetime
-from asyncio import set_event_loop, new_event_loop
 
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
@@ -135,7 +134,7 @@ def find_ad_groups(
 
 
 def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: str, division: str, role: str,
-                     action='transfer') -> dict[str, str | Any]:
+                     action='transfer', group_legacy=False) -> dict[str, str | Any]:
     user = f'{first_name}, {other_name}, {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
     find_group = find_ad_groups(division)
@@ -159,8 +158,10 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
                                   'description': [MODIFY_REPLACE, f'{role}']}
             conn.modify(d_n_new, changes=transfer_user_info)
 
-            if removed_groups:
-                ad_remove_members_from_groups(conn, d_n_new, removed_groups, fix=False)
+            if not group_legacy:
+                if removed_groups:                                                                # Add to group with delete
+                    ad_remove_members_from_groups(conn, d_n_new, removed_groups, fix=False)       #
+
             ad_add_members_to_groups(conn, d_n_new, member_of)
             result = conn.result
         if result['result'] == 0:
