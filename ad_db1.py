@@ -343,9 +343,24 @@ def get_infra_ou(main: str):
 def set_div_descript(div, descr):
     pass
 
-def set_main_descript(main, div, descr):
+def set_main_descript(main, div, descr, conn):
+
+    for dn in get_infra_ou(main):
+        result = conn.add(dn=dn, object_class=OBJECT_CLASS)
+        print(f'set main structure : {result}')
+
+    dn = f"CN={div},OU=Divisions,OU={main},DC=rpz,DC=local"
+    set_descript = {'description': descr}
+    result = conn.add(dn=dn, object_class=OBJECT_CLASS, attributes=set_descript)
+    print(f'set div : {div}, {result}')
+
     if main == div:
         dn = f"OU=New_users,OU={main},DC=rpz,DC=local"
+        set_descript = {'description': [MODIFY_REPLACE, f'{descr}']}
+        result = conn.modify(dn, changes=set_descript)
+        print(f'main descript : {div}, {result}')
+
+
 
 
 
