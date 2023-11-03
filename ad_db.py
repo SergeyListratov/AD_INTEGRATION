@@ -159,8 +159,8 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
             conn.modify(d_n_new, changes=transfer_user_info)
 
             if not group_legacy:
-                if removed_groups:                                                                # Add to group with delete
-                    ad_remove_members_from_groups(conn, d_n_new, removed_groups, fix=False)       #
+                if removed_groups:  # Add to group with delete
+                    ad_remove_members_from_groups(conn, d_n_new, removed_groups, fix=False)  #
 
             ad_add_members_to_groups(conn, d_n_new, member_of)
             result = conn.result
@@ -218,7 +218,8 @@ def dismiss_ad_user(
 
                 else:
                     msg = f'ERROR: User {user} not blocked: {conn.result["message"]}'
-                    AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data['email'] = 'ERROR', msg, 'ERROR'
+                    AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data[
+                        'email'] = 'ERROR', msg, 'ERROR'
         else:
             msg = f'ERROR: User {user} not found. find_ad_users get: [], Name or tabel_number not found'
             AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data['email'] = 'ERROR', msg, 'ERROR'
@@ -284,7 +285,8 @@ def create_ad_user(
             # Add groups
             conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
             msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
-            AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data['email'], AdUsersDAO.data['login_name'] ='OK', msg, user_ad_attr['userPrincipalName'], login
+            AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data['email'], AdUsersDAO.data[
+                'login_name'] = 'OK', msg, user_ad_attr['userPrincipalName'], login
     else:
         msg = (f'ERROR: User {c_n} was not created: tabel_number in use, or division not found. '
                f'find_ad_groups or find_ad_users get: []')
@@ -375,13 +377,56 @@ def login_generator(first_name: str, other_name: str, last_name: str) -> str:
         yield login
 
 
-if __name__ == '__main__':
-    # print(get_division('УТ (ТЕСТ БТ )'))
-    print(get_division('Р075 (СР )'))
+def get_infra_ou(main: str):
+    return [
+        f"OU=Divisions,OU={main},DC=rpz,DC=local", f"OU=Roles,OU={main},DC=rpz,DC=local",
+        f"OU=New_users,OU={main},DC=rpz,DC=local", f"OU=Dismissed_users,OU={main},DC=rpz,DC=local"
+    ]
 
-    # first_name, other_name, last_name, initials, division, rol, action = 'Дмитрий', 'Петрович', 'Бонl', '33991', 'УТ (ТЕСТ1 БТ )', 'Специальный агент000', 'create'
-    # first_name, other_name, last_name, initials, division, rol, action = 'Дмитрий', 'Петрович', 'Бонl', '33991', 'МТ (ТЕСТ1 БО)', 'Специальный агент007', 'transfer'
-    # first_name, other_name, last_name, initials, division, rol, action = 'Дмитрий', 'Петрович', 'Бонl', '33991', 'УТ (ТЕСТ1 БТ )', 'Специальный агент000', 'dismiss'
+
+def set_main_descript(main, div, descr):
+    with ldap_conn() as conn:
+        if main == div:
+            for dn in get_infra_ou(main):
+                if dn.startswith('OU=Divisions'):
+                    result = conn.add(dn, 'organizationalUnit', {'description': descr})
+                else:
+                    result = conn.add(dn, 'organizationalUnit')
+                print(f'set main structure + descr : {result}')
+            dn = f"CN={div},OU=Divisions,OU={main},DC=rpz,DC=local"
+            set_descript = {'description': descr}
+            result = conn.add(dn, 'Group', set_descript)
+            print(f'set div + descript : {div}, {result}')
+
+        else:
+            dn = f"CN={div},OU=Divisions,OU={main},DC=rpz,DC=local"
+            set_descript = {'description': descr}
+            result = conn.add(dn, 'Group', set_descript)
+            print(f'set div + descript : {div}, {result}')
+
+
+def file_to_file(file_in, file_out):
+    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
+        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+            for st in file:
+                new_st = get_division(st)
+                new_file.write(new_st)
+
+
+def from_file_to_ad_prepare(file_in):
+    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
+        for st in file:
+            main, div, descr = get_division(st.split(';')[0]), get_division(st.split(';')[1]), st.split(';')[2].rstrip(
+                '\n')
+            set_main_descript(main, div, descr)
+
+
+
+if __name__ == '__main__':
+
+    file_in = 'f.csv'
+    from_file_to_ad_prepare(file_in)
+
 
     jsn1 = {
 
@@ -417,3 +462,4 @@ if __name__ == '__main__':
 
 # ad = director(jsn3)
 # print(ad)
+
