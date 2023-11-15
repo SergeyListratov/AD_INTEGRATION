@@ -38,7 +38,9 @@ def director(jsn: dict):
 def find_ad_users(
         first_name: str, other_name: str, last_name: str, number: str, ldap_base_dn: str = LDAP_BASE_DN
 ) -> Optional[list[dict]]:
-    pattern_tuple: tuple = (f'{first_name} {other_name} {last_name}', f'{first_name} {last_name}')
+    pattern_tuple: tuple = (f'{first_name} {other_name} {last_name}', f'{last_name} {other_name} {first_name}',
+                            f'{last_name} {first_name} {other_name}', f'{first_name} {last_name}',
+                            f'{last_name} {first_name}')
     find_usr_list: Optional[list[dict]] = []
     with ldap_conn() as c:
         for patt in pattern_tuple:
@@ -353,13 +355,16 @@ def get_translit(text: str) -> str:
 
 
 def get_division(st: str) -> str:
-    new_st = ''
-    symbol_dict = {' ': '_', '(': '', ')': '', '.': ''}
+    new_st, counter = '', 64
+    symbol_dict = {' ': '_', '(': '', ')': '', '.': '', '/': ''}
     en_st = get_translit(st).upper()
     for s in en_st:
+        counter -= 1
         if s in symbol_dict:
             s = symbol_dict[s]
         new_st = new_st + s
+        if not counter:
+            break
     return new_st
 
 
@@ -421,11 +426,86 @@ def from_file_to_ad_prepare(file_in):
             set_main_descript(main, div, descr)
 
 
+def from_file_to_ad_role_prepare(file_in, file_out):
+    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
+        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+            with ldap_conn() as conn:
+                for st in file:
+                    sts = st.split(';')
+                    last, first, other, number, div, role, descr = sts[0], sts[1], sts[2], sts[3], get_division(
+                        sts[4]), get_division(sts[6]), sts[6]
+                    found_user_list = find_ad_users(first, other, last, number)
+                    if found_user_list:
+                        user_add_attr = {'department': [(MODIFY_REPLACE, f'{sts[4]}')],
+                                         'company': [(MODIFY_REPLACE, 'АО РПЗ')],
+                                         'title': [MODIFY_REPLACE, f'{descr}'],
+                                         'description': [MODIFY_REPLACE, f'{descr}']}
+
+                        d_n = found_user_list[0]['distinguishedName']
+                        member_of_user = found_user_list[0]['memberOf']
+                        print(member_of_user)
+                        conn.modify(d_n, changes=user_add_attr)
+                        dn_group = set_role_descript(get_main(d_n), role, descr, conn)
+
+                        member_of_group = find_member_of_group(dn_group, conn)
+
+                        if member_of_group:
+                            member_of_set = set.intersection_update(set(member_of_user), member_of_group)
+                            role_set_groups_attr = {'memberOf': [(MODIFY_REPLACE, f'{[member_of_set]}')]}
+                            print(role_set_groups_attr)
+                        else:
+                            role_set_groups_attr = {'memberOf': [(MODIFY_REPLACE, f'{[member_of_user]}')]}
+                            print(role_set_groups_attr)
+
+
+
+                    else:
+                        new_file.write(f'{last}, {first}, {other}, {number}, {div}, {role}, {descr}')
+
+
+def set_role_descript(main, role, descr, conn):
+    dn = f"CN={role},OU=Roles,OU={main},DC=rpz,DC=local"
+    set_descript = {'description': descr}
+    result = conn.add(dn, 'Group', set_descript)
+    print(f'set role + descript : {role}, {result}')
+    return dn
+
+
+def get_main(dn):
+    main = dn.split(',')[-3][3:]
+    return main
+
+
+def find_member_of_group(dn, conn):
+    sn = dn.split(',')[0][3:]
+    search_filter = f"(cn={sn})"
+    conn.search(search_base=LDAP_BASE_DN,
+             search_filter=search_filter,
+             search_scope=SUBTREE,
+             attributes=ALL_ATTRIBUTES,
+             get_operational_attributes=True)
+    member_of = []
+    ad_atr_list: Optional[list[dict]] = json.loads(conn.response_to_json())['entries']
+    if ad_atr_list:
+        for ad_atr in ad_atr_list:
+            if 'memberOf' in ad_atr['attributes']:
+                member_of = {'memberOf': ad_atr['attributes']['memberOf']}
+
+    return  member_of
+
+
 
 
 
 if __name__ == '__main__':
-
+    r = 'Заместитель начальника управления-начальник отдела технического сопровождения'
+    r = 'Инженер технической поддержки'
+    r = 'Начальник бюро /ТИ34 (УИТ ОТС_БСА)/'
+    r = 'Заместитель начальника управления-начальник отдела технического сопровождения /ТИ34 (УИТ ОТС )/'
+    # print(get_division(r))
+    f = 'roles1.csv'
+    ff = '1.txt'
+    print(from_file_to_ad_role_prepare(f, ff))
 
     jsn1 = {
 
