@@ -426,49 +426,97 @@ def from_file_to_ad_prepare(file_in):
             set_main_descript(main, div, descr)
 
 
-def from_file_to_ad_role_prepare(file_in, file_out):
+###foo1
+def from_file_role_create(file_in, file_out):
     with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
         with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
             with ldap_conn() as conn:
                 for st in file:
                     sts = st.split(';')
                     last, first, other, number, div, role, descr = sts[0], sts[1], sts[2], sts[3], get_division(
-                        sts[4]), get_division(sts[6]), sts[6]
+                        sts[4]), get_division(sts[6].rstrip()), sts[6].rstrip()
                     found_user_list = find_ad_users(first, other, last, number)
                     if found_user_list:
                         user_add_attr = {'department': [(MODIFY_REPLACE, f'{sts[4]}')],
                                          'company': [(MODIFY_REPLACE, 'АО РПЗ')],
                                          'title': [MODIFY_REPLACE, f'{descr}'],
                                          'description': [MODIFY_REPLACE, f'{descr}']}
-
                         d_n = found_user_list[0]['distinguishedName']
-                        member_of_user = found_user_list[0]['memberOf']
-                        print(member_of_user)
+                        member_of_user = []
                         conn.modify(d_n, changes=user_add_attr)
-                        dn_group = set_role_descript(get_main(d_n), role, descr, conn)
+                        d_n_group = set_role_descript(get_main(d_n), role, descr, conn)
+                        member_of_group = find_member_of_group(d_n_group, conn)
 
-                        member_of_group = find_member_of_group(dn_group, conn)
+                        if 'memberOf' in found_user_list[0]:
+                            member_of_user = found_user_list[0]['memberOf']
+##########################
+                            m_set = set_role_member_of(d_n_group, member_of_group, member_of_user, conn, role)
+                            new_file.write(f'{last}\n{member_of_user}\n{member_of_group}\n{m_set}\n\n')
 
-                        if member_of_group:
-                            member_of_set = set.intersection_update(set(member_of_user), member_of_group)
-                            role_set_groups_attr = {'memberOf': [(MODIFY_REPLACE, f'{[member_of_set]}')]}
-                            print(role_set_groups_attr)
+                    else:
+                        new_file.write(f'\n{last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
+
+
+##!!!foo2
+def from_file_role_security(file_in, file_out):
+    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
+        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+            with ldap_conn() as conn:
+                for st in file:
+                    sts = st.split(';')
+                    last, first, other, number, div, role, descr = sts[0], sts[1], sts[2], sts[3], get_division(
+                        sts[4]), get_division(sts[6].rstrip()), sts[6].rstrip()
+                    found_user_list = find_ad_users(first, other, last, number)
+                    if found_user_list:
+                        d_n = found_user_list[0]['distinguishedName']
+                        d_n_group = set_role_descript(get_main(d_n), role, descr, conn)
+                        member_of_group = find_member_of_group(d_n_group, conn)
+                        if ad_remove_members_from_groups(conn, d_n, member_of_group, fix=False):
+                            new_file.write(f'{last}\n{member_of_group}\n\n')
+
                         else:
-                            role_set_groups_attr = {'memberOf': [(MODIFY_REPLACE, f'{[member_of_user]}')]}
-                            print(role_set_groups_attr)
+                            new_file.write(f'\n DeltaErr {last}, {number}, {div}, {role}, {descr}\n')
+
+                        d_n_div_l = d_n_group.split(',')
+                        d_n_div_l[1] = 'OU=Divisions'
+                        d_n_div_l[0] = f'CN={div}'
+                        d_n_div = ','.join(d_n_div_l)
+
+                        ad_add_members_to_groups(conn, d_n_group, d_n_div)
+                        ad_add_members_to_groups(conn, d_n, d_n_group)
 
 
 
                     else:
-                        new_file.write(f'{last}, {first}, {other}, {number}, {div}, {role}, {descr}')
+                        new_file.write(f'\n FoundErr {last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
 
 
 def set_role_descript(main, role, descr, conn):
     dn = f"CN={role},OU=Roles,OU={main},DC=rpz,DC=local"
     set_descript = {'description': descr}
     result = conn.add(dn, 'Group', set_descript)
-    print(f'set role + descript : {role}, {result}')
+    # print(f'set role + descript : {role}, {result}')
     return dn
+
+
+def set_role_member_of(d_n_group, member_of_group, member_of_user, conn, role):
+    if member_of_group:
+        group_set = set(member_of_group)
+        user_set = set(member_of_user)
+        group_set.intersection_update(user_set)
+        member_of_set = list(group_set)
+        role_set_groups_attr1 = member_of_set
+        ad_remove_members_from_groups(conn, d_n_group, member_of_group, fix=False)
+    else:
+        role_set_groups_attr1 = member_of_user
+
+    result = ad_add_members_to_groups(conn, d_n_group, role_set_groups_attr1)
+    return role_set_groups_attr1
+
+
+def set_user_role_member_of(d_n, member_of_group, conn, role):
+    result = ad_remove_members_from_groups(conn, d_n, member_of_group, fix=False)
+    return member_of_group
 
 
 def get_main(dn):
@@ -489,9 +537,5 @@ def find_member_of_group(dn, conn):
     if ad_atr_list:
         for ad_atr in ad_atr_list:
             if 'memberOf' in ad_atr['attributes']:
-                member_of = {'memberOf': ad_atr['attributes']['memberOf']}
-
+                member_of = ad_atr['attributes']['memberOf']
     return member_of
-
-
-
