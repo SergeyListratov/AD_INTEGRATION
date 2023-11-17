@@ -1,5 +1,6 @@
 import json
 from ldap3 import Server, Connection, SUBTREE, ALL_ATTRIBUTES, Tls, MODIFY_REPLACE, ALL
+from ldap3.core.exceptions import LDAPInvalidDnError
 
 from app.ad_users.dao import AdUsersDAO
 from app.ad_users.router import SAdUser
@@ -136,7 +137,7 @@ def find_ad_groups(
 
 
 def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: str, division: str, role: str,
-                     action='transfer', group_legacy=False) -> dict[str, str | Any]:
+                     action='transfer', group_legacy=False, ad_role_present=False) -> dict[str, str | Any]:
     user = f'{first_name}, {other_name}, {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
     find_group = find_ad_groups(division)
@@ -164,10 +165,28 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
                 if removed_groups:  # Add to group with delete
                     ad_remove_members_from_groups(conn, d_n_new, removed_groups, fix=False)  #
 
-            ad_add_members_to_groups(conn, d_n_new, member_of)
+
+            if ad_role_present:
+                # add_user_to_rol(d_n_new, role, conn)
+
+                try:
+                    add_user_to_rol(d_n_new, role, conn)
+                    msg = f'OK: User {user} was remove from {removed_groups} to {member_of} division with new role:{role}.'
+                except LDAPInvalidDnError:
+                    conn.extend.microsoft.add_members_to_groups(d_n_new, member_of)
+                    msg = (f'OK BUT ROLE not set: User {user} was remove from {removed_groups} to {member_of} division.'
+                           f' BUT not added to role group:{role}. (role {get_division(role)} not found)')
+
+            else:
+                conn.extend.microsoft.add_members_to_groups(d_n_new, member_of)
+                msg = (f'OK BUT ROLE not set: User {user} was remove from {removed_groups} to {member_of} division.'
+                       f' BUT not added to role group: {role}. (ad_role_present mode is active)')
+
+
+            # ad_add_members_to_groups(conn, d_n_new, member_of)
             result = conn.result
         if result['result'] == 0:
-            msg = f'OK: User {user} was remove from {removed_groups} to {member_of} division with new role:{role}.'
+            # msg = f'OK: User {user} was remove from {removed_groups} to {member_of} division with new role:{role}.'
             AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data['email'] = 'OK', msg, 'OK'
         else:
             msg = f'ERROR: User {user} not transferred: {conn.result["message"]}'
@@ -285,8 +304,18 @@ def create_ad_user(
             # enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
             # conn.modify(new_user_dn, changes=enable_account)
             # Add groups
-            conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
-            msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
+
+            msg = f'OK. User {new_user_dn} was created in role {get_division(role)}.'
+
+            try:
+                add_user_to_rol(new_user_dn, role, conn)
+            except LDAPInvalidDnError:
+                conn.extend.microsoft.add_members_to_groups(new_user_dn, d_n_group)
+                msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
+
+
+            # conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
+            # msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
             AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data['email'], AdUsersDAO.data[
                 'login_name'] = 'OK', msg, user_ad_attr['userPrincipalName'], login
     else:
@@ -434,7 +463,7 @@ def from_file_role_create(file_in, file_out):
                 for st in file:
                     sts = st.split(';')
                     last, first, other, number, div, role, descr = sts[0], sts[1], sts[2], sts[3], get_division(
-                        sts[4]), get_division(sts[6].rstrip()), sts[6].rstrip()
+                        sts[4]), get_division(sts[5].rstrip()), sts[5].rstrip()
                     found_user_list = find_ad_users(first, other, last, number)
                     if found_user_list:
                         user_add_attr = {'department': [(MODIFY_REPLACE, f'{sts[4]}')],
@@ -447,14 +476,17 @@ def from_file_role_create(file_in, file_out):
                         d_n_group = set_role_descript(get_main(d_n), role, descr, conn)
                         member_of_group = find_member_of_group(d_n_group, conn)
 
+                        add_role_to_div(d_n_group, div, conn)
+
                         if 'memberOf' in found_user_list[0]:
                             member_of_user = found_user_list[0]['memberOf']
-##########################
+                            ##########################
                             m_set = set_role_member_of(d_n_group, member_of_group, member_of_user, conn, role)
                             new_file.write(f'{last}\n{member_of_user}\n{member_of_group}\n{m_set}\n\n')
 
+
                     else:
-                        new_file.write(f'\n{last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
+                        new_file.write(f'\nERROR {last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
 
 
 ##!!!foo2
@@ -465,7 +497,7 @@ def from_file_role_security(file_in, file_out):
                 for st in file:
                     sts = st.split(';')
                     last, first, other, number, div, role, descr = sts[0], sts[1], sts[2], sts[3], get_division(
-                        sts[4]), get_division(sts[6].rstrip()), sts[6].rstrip()
+                        sts[4]), get_division(sts[5].rstrip()), sts[5].rstrip()
                     found_user_list = find_ad_users(first, other, last, number)
                     if found_user_list:
                         d_n = found_user_list[0]['distinguishedName']
@@ -477,25 +509,36 @@ def from_file_role_security(file_in, file_out):
                         else:
                             new_file.write(f'\n DeltaErr {last}, {number}, {div}, {role}, {descr}\n')
 
-                        d_n_div_l = d_n_group.split(',')
-                        d_n_div_l[1] = 'OU=Divisions'
-                        d_n_div_l[0] = f'CN={div}'
-                        d_n_div = ','.join(d_n_div_l)
-
-                        ad_add_members_to_groups(conn, d_n_group, d_n_div)
                         ad_add_members_to_groups(conn, d_n, d_n_group)
-
-
 
                     else:
                         new_file.write(f'\n FoundErr {last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
+
+
+def add_role_to_div(d_n_group, div, conn):
+    d_n_div_l = d_n_group.split(',')
+    d_n_div_l[1] = 'OU=Divisions'
+    d_n_div_l[0] = f'CN={div}'
+    d_n_div = ','.join(d_n_div_l)
+    result = ad_add_members_to_groups(conn, d_n_group, d_n_div)
+    return result
+
+
+def add_user_to_rol(d_n_user, role, conn):
+    rol = get_division(role)
+    d_n_role = d_n_user.split(',')
+    d_n_role[1] = 'OU=Roles'
+    d_n_role[0] = f'CN={rol}'
+    d_n_group = ','.join(d_n_role)
+    result = ad_add_members_to_groups(conn, d_n_user, d_n_group)
+    return result
 
 
 def set_role_descript(main, role, descr, conn):
     dn = f"CN={role},OU=Roles,OU={main},DC=rpz,DC=local"
     set_descript = {'description': descr}
     result = conn.add(dn, 'Group', set_descript)
-    # print(f'set role + descript : {role}, {result}')
+    print(f'set role + descript : {role}, {result}')
     return dn
 
 
@@ -528,10 +571,10 @@ def find_member_of_group(dn, conn):
     sn = dn.split(',')[0][3:]
     search_filter = f"(cn={sn})"
     conn.search(search_base=LDAP_BASE_DN,
-             search_filter=search_filter,
-             search_scope=SUBTREE,
-             attributes=ALL_ATTRIBUTES,
-             get_operational_attributes=True)
+                search_filter=search_filter,
+                search_scope=SUBTREE,
+                attributes=ALL_ATTRIBUTES,
+                get_operational_attributes=True)
     member_of = []
     ad_atr_list: Optional[list[dict]] = json.loads(conn.response_to_json())['entries']
     if ad_atr_list:
