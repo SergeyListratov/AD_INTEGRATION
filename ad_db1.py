@@ -502,17 +502,20 @@ def from_file_role_security(file_in, file_out):
                     if found_user_list:
                         d_n = found_user_list[0]['distinguishedName']
                         d_n_group = set_role_descript(get_main(d_n), role, descr, conn)
-                        member_of_group = find_member_of_group(d_n_group, conn)
-                        if ad_remove_members_from_groups(conn, d_n, member_of_group, fix=False):
-                            new_file.write(f'{last}\n{member_of_group}\n\n')
+                        dn_group_groups_list = find_member_of_group(d_n_group, conn)
+                        dn_user_groups_list = find_member_of_group(d_n, conn)
+                        dn_remove_list = list(set(dn_user_groups_list) & set(dn_group_groups_list))
+                        result = ad_remove_members_from_groups(conn, d_n, dn_remove_list, fix=False)
+                        if result:
+                            new_file.write(f'{last}\n{dn_group_groups_list}\n\n')
 
                         else:
-                            new_file.write(f'\n DeltaErr {last}, {number}, {div}, {role}, {descr}\n')
+                            new_file.write(f'\nDeltaErr {last}, {number}, {div}, {role}, {descr}\n')
 
                         ad_add_members_to_groups(conn, d_n, d_n_group)
 
                     else:
-                        new_file.write(f'\n FoundErr {last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
+                        new_file.write(f'\nFoundErr {last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
 
 
 def add_role_to_div(d_n_group, div, conn):
@@ -557,9 +560,10 @@ def set_role_member_of(d_n_group, member_of_group, member_of_user, conn, role):
     return role_set_groups_attr1
 
 
-def set_user_role_member_of(d_n, member_of_group, conn, role):
-    result = ad_remove_members_from_groups(conn, d_n, member_of_group, fix=False)
-    return member_of_group
+def set_user_role_member_of(d_n, dn_remove_groups, conn, role):
+
+    result = ad_remove_members_from_groups(conn, d_n, dn_remove_groups, fix=False)
+    return dn_remove_groups
 
 
 def get_main(dn):
@@ -591,8 +595,8 @@ if __name__ == '__main__':
     r = 'Начальник бюро /ТИ34 (УИТ ОТС_БСА)/'
     r = 'Заместитель начальника управления-начальник отдела технического сопровождения /ТИ34 (УИТ ОТС )/'
     # print(get_division(r))
-    f = 'roles3.csv'
-    ff = '33.txt'
+    f = 'roles4.csv'
+    ff = '4.txt'
     # print(from_file_role_create(f, ff))
     print(from_file_role_security(f, ff))
 

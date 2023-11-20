@@ -502,17 +502,20 @@ def from_file_role_security(file_in, file_out):
                     if found_user_list:
                         d_n = found_user_list[0]['distinguishedName']
                         d_n_group = set_role_descript(get_main(d_n), role, descr, conn)
-                        member_of_group = find_member_of_group(d_n_group, conn)
-                        if ad_remove_members_from_groups(conn, d_n, member_of_group, fix=False):
-                            new_file.write(f'{last}\n{member_of_group}\n\n')
+                        dn_group_groups_list = find_member_of_group(d_n_group, conn)
+                        dn_user_groups_list = find_member_of_group(d_n, conn)
+                        dn_remove_list = list(set(dn_user_groups_list) & set(dn_group_groups_list))
+                        result = ad_remove_members_from_groups(conn, d_n, dn_remove_list, fix=False)
+                        if result:
+                            new_file.write(f'{last}\n{dn_group_groups_list}\n\n')
 
                         else:
-                            new_file.write(f'\n DeltaErr {last}, {number}, {div}, {role}, {descr}\n')
+                            new_file.write(f'\nDeltaErr {last}, {number}, {div}, {role}, {descr}\n')
 
                         ad_add_members_to_groups(conn, d_n, d_n_group)
 
                     else:
-                        new_file.write(f'\n FoundErr {last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
+                        new_file.write(f'\nFoundErr {last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
 
 
 def add_role_to_div(d_n_group, div, conn):
@@ -557,9 +560,10 @@ def set_role_member_of(d_n_group, member_of_group, member_of_user, conn, role):
     return role_set_groups_attr1
 
 
-def set_user_role_member_of(d_n, member_of_group, conn, role):
-    result = ad_remove_members_from_groups(conn, d_n, member_of_group, fix=False)
-    return member_of_group
+def set_user_role_member_of(d_n, dn_remove_groups, conn, role):
+
+    result = ad_remove_members_from_groups(conn, d_n, dn_remove_groups, fix=False)
+    return dn_remove_groups
 
 
 def get_main(dn):
@@ -582,3 +586,68 @@ def find_member_of_group(dn, conn):
             if 'memberOf' in ad_atr['attributes']:
                 member_of = ad_atr['attributes']['memberOf']
     return member_of
+
+
+
+if __name__ == '__main__':
+    r = 'Заместитель начальника управления-начальник отдела технического сопровождения'
+    r = 'Инженер технической поддержки'
+    r = 'Начальник бюро /ТИ34 (УИТ ОТС_БСА)/'
+    r = 'Заместитель начальника управления-начальник отдела технического сопровождения /ТИ34 (УИТ ОТС )/'
+    # print(get_division(r))
+    f = 'roles4.csv'
+    ff = '4.txt'
+    # print(from_file_role_create(f, ff))
+    print(from_file_role_security(f, ff))
+
+    # d_n_group1 = ['CN=STARSHIJ_SISTEMNYJ_ADMINISTRATOR_TI34_UIT_OTS_BSA,OU=Roles,OU=TI_UIT,DC=rpz,DC=local']
+    # m_v = ['CN=engineermv,OU=Groups,DC=rpz,DC=local', 'CN=SPB_InfRES_RW,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_OTDEL65_RW,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_OTDEL63_64_RW,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_OTDEL62_RW,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_OTDEL61_RW,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_SKB_ALL,OU=O_FP,DC=rpz,DC=local', 'CN=Interpost,CN=Users,DC=rpz,DC=local', 'CN=SPB_KO_INOUT,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_Kyocera2040,OU=O_FP,DC=rpz,DC=local', 'CN=RDG_USER1,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=ALL_not_GD_ZGD,OU=EXCHANGE,OU=Groups,DC=rpz,DC=local', 'CN=secpass,OU=GPO,OU=Groups,DC=rpz,DC=local', 'CN=all,CN=Users,DC=rpz,DC=local', 'CN=F RPZ-SRV-CHANGE.change (R),OU=FOLDER,OU=Groups,DC=rpz,DC=local', 'CN=ConnectDB_1C_83_01_DOC_CORP,OU=Access,OU=Groups,DC=rpz,DC=local']
+    #
+    # d_n_group = ['CN=INZHENER_TEHNICHESKOJ_PODDERZHKI_TI34_UIT_OTS_BTO,OU=Roles,OU=TI_UIT,DC=rpz,DC=local']
+    #
+    # m_s_a = ['CN=ConnectDB_1C_83_01_TASKS,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=srv-fs1_distributives_W,OU=FOLDER,OU=Groups,DC=rpz,DC=local', 'CN=DUTY,OU=Groups,OU=TI_UIT,DC=rpz,DC=local', 'CN=F RPZ-SRV-SCRIBE.Logs (R),OU=FOLDER,OU=Groups,DC=rpz,DC=local', 'CN=F RPZ-SRV-CHANGE.change (R),OU=FOLDER,OU=Groups,DC=rpz,DC=local', 'CN=F SERVER1.Общая.ASUP (W),OU=FOLDER,OU=Groups,DC=rpz,DC=local', 'CN=Itinfo,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=WikiAuthor,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=TechIT,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=RemoteAssistance,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=OTRSagents,CN=Users,DC=rpz,DC=local', 'CN=Inventor,OU=Groups,DC=rpz,DC=local', 'CN=OFFICE_SLAVE,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=ASUP,OU=FOLDER,OU=Groups,DC=rpz,DC=local']
+    #
+    # with ldap_conn() as c:
+    #     ad_add_members_to_groups(c, d_n_group, m_s_a)
+
+    # d_n_user =
+    # role = "Спецагент 001"
+    # d_n_group =
+    # div = "УТ (ТЕСТ1 БТ )"
+    #
+    # add_user_to_rol(d_n_user, role, conn)
+
+    jsn1 = {
+
+        "first_name": "Дмитрий",
+        "other_name": "Петрович",
+        "last_name": "Бондд",
+        "number": "33997",
+        "division": "УТ (ТЕСТ1 БТ )",
+        "role": "Специальный агент 002",
+        "action": "create"
+
+    }
+
+    jsn2 = {
+        "first_name": "Дмитрий",
+        "other_name": "Петрович",
+        "last_name": "Бондд",
+        "number": "33997",
+        "division": "МТ (ТЕСТ1 БО)",
+        "role": "Специальный агент 007",
+        "action": "transfer"
+    }
+
+    jsn3 = {
+        "first_name": "Дмитрий",
+        "other_name": "Петрович",
+        "last_name": "Бондд",
+        "number": "33997",
+        "division": "МТ (ТЕСТ1 БО)",
+        "role": "Спецагент 007",
+        "action": "dismiss"
+    }
+
+# ad = director(jsn3)
+# print(ad)
