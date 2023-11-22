@@ -54,6 +54,7 @@ def find_ad_users(
                      attributes=ALL_ATTRIBUTES,
                      get_operational_attributes=True)
             ad_atr_list: Optional[list[dict]] = json.loads(c.response_to_json())['entries']
+
             if ad_atr_list:
                 for ad_atr in ad_atr_list:
                     if 'initials' in ad_atr['attributes']:
@@ -73,7 +74,7 @@ def find_ad_users(
                     if 'memberOf' in ad_atr['attributes'] and find_usr_list:
                         find_usr_list[-1]['memberOf'] = ad_atr['attributes']['memberOf']
 
-        return find_usr_list
+    return find_usr_list
 
 
 '''
@@ -90,7 +91,7 @@ def find_ad_groups(
 ) -> Optional[list[dict]]:
     find_grp_list: Optional[list[dict]] = []
     with ldap_conn() as c:
-        gp = get_division(get_translit(division))
+        gp = get_div_rol_descript(division)[0]
         search_filter = f"(cn={gp})"
         c.search(search_base=ldap_base_dn,
                  search_filter=search_filter,
@@ -143,6 +144,7 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
     user = f'{first_name}, {other_name}, {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
     find_group = find_ad_groups(division)
+    div_en, rol_en, descript = get_div_rol_descript(division, role)
     if find_user and find_group:
         user = find_user[0]['sAMAccountName']
         d_n_user = find_user[0]['distinguishedName']
@@ -159,10 +161,9 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
             conn.modify_dn(d_n_user, c_n_user, new_superior=pre_d_n_new)
             transfer_user_info = {'department': [(MODIFY_REPLACE, f'{division}')],
                                   'company': [(MODIFY_REPLACE, 'АО РПЗ')],
-                                  'title': [MODIFY_REPLACE, f'{role}'],
-                                  'description': [MODIFY_REPLACE, f'{role}']}
+                                  'title': [MODIFY_REPLACE, f'{role} / {division}'],
+                                  'description': [MODIFY_REPLACE, f'{role} / {division}']}
             conn.modify(d_n_new, changes=transfer_user_info)
-
             if not group_legacy:
                 if removed_groups:  # Add to group with delete
                     ad_remove_members_from_groups(conn, d_n_new, removed_groups, fix=False)  #
@@ -171,7 +172,7 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
                 # add_user_to_rol(d_n_new, role, conn)
 
                 try:
-                    add_user_to_rol(d_n_new, role, conn)
+                    add_user_to_rol(d_n_new, rol_en, conn)
                     msg = f'OK: User {user} was remove from {removed_groups} to {member_of} division with new role:{role}.'
                 except LDAPInvalidDnError:
                     conn.extend.microsoft.add_members_to_groups(d_n_new, member_of)
@@ -179,7 +180,7 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
                            f' BUT not added to role group:{role}. (role {get_division(role)} not found)')
 
             else:
-                conn.extend.microsoft.add_members_to_groups(d_n_new, member_of)
+                # conn.extend.microsoft.add_members_to_groups(d_n_new, member_of)  Temproary
                 msg = (f'OK BUT ROLE not set: User {user} was remove from {removed_groups} to {member_of} division.'
                        f' BUT not added to role group: {role}. (ad_role_present mode is active)')
 
@@ -382,8 +383,8 @@ def get_translit(text: str) -> str:
     return en_text
 
 
-def get_div_rol(div: str, rol: str) -> tuple[str | Any, str | Any, str]:
-    new_div, new_rol, new_st = '', '', ''
+def get_div_rol_descript(div: str, rol='None') -> tuple[str | Any, str | Any, str]:
+    new_div, new_rol, new_full_rol = '', '', ''
     en_div = get_translit(div).upper()
     en_rol = get_translit(rol).upper()
     symbol_dict = {' ': '_', '(': '', ')': '', '.': '', '/': '', ',': '', '-': ''}
@@ -396,9 +397,9 @@ def get_div_rol(div: str, rol: str) -> tuple[str | Any, str | Any, str]:
         if ro in symbol_dict:
             ro = symbol_dict[ro]
         new_rol = (new_rol + ro).rstrip()
-    new_st = f'{new_rol}_{new_div.rstrip("_")}'
-    descr = f'{rol.rstrip()} / {div}'
-    if len(new_st) > 64:
+    new_full_rol = f'{new_rol}_{new_div.rstrip("_")}'
+    descript = f'{rol.rstrip()} / {div}'
+    if len(new_full_rol) > 64:
         k = 1 - (len(new_rol) - (63 - len(new_div))) / len(new_rol)
         new_rol_list = new_rol.split('_')
         lst = []
@@ -407,9 +408,9 @@ def get_div_rol(div: str, rol: str) -> tuple[str | Any, str | Any, str]:
             if int(d) != 0:
                 lst.append(new_rol_list[i][:int(d)])
         new_rol = '_'.join(lst)
-        new_st = f'{new_rol}_{new_div.rstrip("_")}'
+        new_full_rol = f'{new_rol}_{new_div.rstrip("_")}'
 
-    return new_div, new_st, descr
+    return new_div, new_full_rol, descript
 
 
 def get_division(st: str) -> str:
@@ -492,8 +493,11 @@ def from_file_role_create(file_in, file_out):
                 for st in file:
                     sts = st.split(';')
                     last, first, other, number = sts[0], sts[1], sts[2], sts[3]
-                    div, role, descr = get_div_rol(sts[4], sts[5])
+                    div, role, descr = get_div_rol_descript(sts[4], sts[5])
+                    div_ru, role_ru = sts[4].rstrip(), sts[5].rstrip()
+
                     found_user_list = find_ad_users(first, other, last, number)
+
                     if found_user_list:
                         user_add_attr = {'department': [(MODIFY_REPLACE, f'{sts[4]}')],
                                          'company': [(MODIFY_REPLACE, 'АО РПЗ')],
@@ -501,9 +505,21 @@ def from_file_role_create(file_in, file_out):
                                          'description': [MODIFY_REPLACE, f'{descr}']}
                         d_n = found_user_list[0]['distinguishedName']
                         member_of_user = []
-                        conn.modify(d_n, changes=user_add_attr)
+                        # conn.modify(d_n, changes=user_add_attr)
+                        if d_n.split(',')[-3][3:] == 'DISMISSED':
+                            new_file.write(f'DISMISSED USER {last}, {first}, {other}, {number}\n')
+                            continue
+
+                        if d_n.split(',')[-3][3:] not in div: ## trffnsfer User
+                            res = transfer_ad_user(first, other, last, number, div_ru, role_ru, group_legacy=True)
+                            new_file.write(
+                                f'DivisionNotFound AND USER was transfered: {res}\n')
+                            found_user_list = find_ad_users(first, other, last, number)
+                            d_n = found_user_list[0]['distinguishedName']
                         d_n_group = set_role_descript(get_main(d_n), role, descr, conn)
                         member_of_group = find_member_of_group(d_n_group, conn)
+
+                        conn.modify(d_n, changes=user_add_attr)
 
                         add_role_to_div(d_n_group, div, conn)
 
@@ -511,11 +527,13 @@ def from_file_role_create(file_in, file_out):
                             member_of_user = found_user_list[0]['memberOf']
                             ##########################
                             m_set = set_role_member_of(d_n_group, member_of_group, member_of_user, conn, role)
-                            new_file.write(f'{last}\n{member_of_user}\n{member_of_group}\n{m_set}\n\n')
-
+                            new_file.write(f'OK {last}\n{member_of_user}\n{member_of_group}\n{m_set}\n')
 
                     else:
-                        new_file.write(f'\nERROR {last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
+                        new_file.write(
+                            f'ERROR UserNotFound {last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
+
+    return True
 
 
 ##!!!foo2
@@ -526,7 +544,8 @@ def from_file_role_security(file_in, file_out):
                 for st in file:
                     sts = st.split(';')
                     last, first, other, number = sts[0], sts[1], sts[2], sts[3]
-                    div, role, descr = get_div_rol(sts[4], sts[5])
+                    div, role, descr = get_div_rol_descript(sts[4], sts[5])
+
                     found_user_list = find_ad_users(first, other, last, number)
                     if found_user_list:
                         d_n = found_user_list[0]['distinguishedName']
@@ -534,17 +553,23 @@ def from_file_role_security(file_in, file_out):
                         dn_group_groups_list = find_member_of_group(d_n_group, conn)
                         dn_user_groups_list = find_member_of_group(d_n, conn)
                         dn_remove_list = list(set(dn_user_groups_list) & set(dn_group_groups_list))
+
+                        if d_n.split(',')[-3][3:] == 'DISMISSED':
+                            new_file.write(f'DISMISSED USER {last}, {first}, {other}, {number}\n')
+                            continue
+
                         result = ad_remove_members_from_groups(conn, d_n, dn_remove_list, fix=False)
                         if result:
-                            new_file.write(f'{last}\n{dn_group_groups_list}\n\n')
+                            new_file.write(f'OK {last} {dn_group_groups_list}\n')
 
                         else:
-                            new_file.write(f'\nDeltaErr {last}, {number}, {div}, {role}, {descr}\n')
-
+                            new_file.write(f'ERROR DeltaNotSet {last}, {number}, {div}, {role}, {descr}\n')
+                        print(d_n)
+                        print(d_n_group)
                         ad_add_members_to_groups(conn, d_n, d_n_group)
 
                     else:
-                        new_file.write(f'\nFoundErr {last}, {first}, {other}, {number}, {div}, {role}, {descr}\n')
+                        new_file.write(f'ERROR UserNotFound {last}, {number}, {div}, {role}, {descr}\n')
 
 
 def add_role_to_div(d_n_group, div, conn):
@@ -615,5 +640,4 @@ def find_member_of_group(dn, conn):
             if 'memberOf' in ad_atr['attributes']:
                 member_of = ad_atr['attributes']['memberOf']
     return member_of
-
 
