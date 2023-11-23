@@ -428,7 +428,7 @@ def get_division(st: str) -> str:
 
 
 def login_generator(first_name: str, other_name: str, last_name: str) -> str:
-    f_n, o_n, l_n = map(get_translit, (first_name.lower(), other_name.lower(), last_name.lower()))
+    f_n, o_n, l_n = map(get_translit, (del_sign(first_name).lower(), del_sign(other_name).lower(), last_name.lower()))
     login_tuple = (
         f'{f_n[0]}.{l_n}',
         f'{f_n[0]}.{o_n[0]}.{l_n}',
@@ -440,6 +440,15 @@ def login_generator(first_name: str, other_name: str, last_name: str) -> str:
     for login in login_tuple:
         yield login
 
+
+def del_sign(wrd: str) -> str:
+    new_wrd = ''
+    signs = ('ъ', 'ь')
+    for w in wrd:
+        if w.lower() not in signs:
+            new_wrd = new_wrd + w
+
+    return new_wrd
 
 def get_infra_ou(main: str):
     return [
@@ -640,4 +649,5 @@ def find_member_of_group(dn, conn):
             if 'memberOf' in ad_atr['attributes']:
                 member_of = ad_atr['attributes']['memberOf']
     return member_of
+
 

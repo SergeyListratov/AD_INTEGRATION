@@ -428,7 +428,7 @@ def get_division(st: str) -> str:
 
 
 def login_generator(first_name: str, other_name: str, last_name: str) -> str:
-    f_n, o_n, l_n = map(get_translit, (first_name.lower(), other_name.lower(), last_name.lower()))
+    f_n, o_n, l_n = map(get_translit, (del_sign(first_name).lower(), del_sign(other_name).lower(), last_name.lower()))
     login_tuple = (
         f'{f_n[0]}.{l_n}',
         f'{f_n[0]}.{o_n[0]}.{l_n}',
@@ -440,6 +440,15 @@ def login_generator(first_name: str, other_name: str, last_name: str) -> str:
     for login in login_tuple:
         yield login
 
+
+def del_sign(wrd: str) -> str:
+    new_wrd = ''
+    signs = ('ъ', 'ь')
+    for w in wrd:
+        if w.lower() not in signs:
+            new_wrd = new_wrd + w
+
+    return new_wrd
 
 def get_infra_ou(main: str):
     return [
@@ -643,32 +652,21 @@ def find_member_of_group(dn, conn):
 
 
 if __name__ == '__main__':
-    r = 'Заместитель начальника управления-начальник отдела технического сопровождения'
-    r = 'Инженер технической поддержки'
-    r = 'Начальник бюро /ТИ34 (УИТ ОТС_БСА)/'
-    r = 'Заместитель начальника управления-начальник отдела технического сопровождения /ТИ34 (УИТ ОТС )/'
-    # print(get_division(r))
-    f = 'roles003.csv'
-    ff = '003.txt'
-    print(from_file_role_create(f, ff))
-    # print(from_file_role_security(f, ff))
+    '''
+      f = 'roles.csv'
+        ff = 'xmo1.txt'
+        print(from_file_role_create(f, ff))
+        # print(from_file_role_security(f, ff))
+    '''
+    # f = 'roles.csv'
+    # ff = 'xmo1.txt'
+    # print(from_file_role_create(f, ff))
+    # # print(from_file_role_security(f, ff))
 
-    # d_n_group1 = ['CN=STARSHIJ_SISTEMNYJ_ADMINISTRATOR_TI34_UIT_OTS_BSA,OU=Roles,OU=TI_UIT,DC=rpz,DC=local']
-    # m_v = ['CN=engineermv,OU=Groups,DC=rpz,DC=local', 'CN=SPB_InfRES_RW,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_OTDEL65_RW,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_OTDEL63_64_RW,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_OTDEL62_RW,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_OTDEL61_RW,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_SKB_ALL,OU=O_FP,DC=rpz,DC=local', 'CN=Interpost,CN=Users,DC=rpz,DC=local', 'CN=SPB_KO_INOUT,OU=O_FP,DC=rpz,DC=local', 'CN=SPB_Kyocera2040,OU=O_FP,DC=rpz,DC=local', 'CN=RDG_USER1,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=ALL_not_GD_ZGD,OU=EXCHANGE,OU=Groups,DC=rpz,DC=local', 'CN=secpass,OU=GPO,OU=Groups,DC=rpz,DC=local', 'CN=all,CN=Users,DC=rpz,DC=local', 'CN=F RPZ-SRV-CHANGE.change (R),OU=FOLDER,OU=Groups,DC=rpz,DC=local', 'CN=ConnectDB_1C_83_01_DOC_CORP,OU=Access,OU=Groups,DC=rpz,DC=local']
-    #
-    # d_n_group = ['CN=INZHENER_TEHNICHESKOJ_PODDERZHKI_TI34_UIT_OTS_BTO,OU=Roles,OU=TI_UIT,DC=rpz,DC=local']
-    #
-    # m_s_a = ['CN=ConnectDB_1C_83_01_TASKS,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=srv-fs1_distributives_W,OU=FOLDER,OU=Groups,DC=rpz,DC=local', 'CN=DUTY,OU=Groups,OU=TI_UIT,DC=rpz,DC=local', 'CN=F RPZ-SRV-SCRIBE.Logs (R),OU=FOLDER,OU=Groups,DC=rpz,DC=local', 'CN=F RPZ-SRV-CHANGE.change (R),OU=FOLDER,OU=Groups,DC=rpz,DC=local', 'CN=F SERVER1.Общая.ASUP (W),OU=FOLDER,OU=Groups,DC=rpz,DC=local', 'CN=Itinfo,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=WikiAuthor,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=TechIT,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=RemoteAssistance,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=OTRSagents,CN=Users,DC=rpz,DC=local', 'CN=Inventor,OU=Groups,DC=rpz,DC=local', 'CN=OFFICE_SLAVE,OU=Access,OU=Groups,DC=rpz,DC=local', 'CN=ASUP,OU=FOLDER,OU=Groups,DC=rpz,DC=local']
-    #
-    # with ldap_conn() as c:
-    #     ad_add_members_to_groups(c, d_n_group, m_s_a)
+    print(next(login_generator('Перье', 'Вальдемар', 'Илсссячся')))
+    print(next(login_generator('Перье', 'Вальдемар', 'ИльсссъЪЪЪЪячсьььья')))
 
-    # d_n_user =
-    # role = "Спецагент 001"
-    # d_n_group =
-    # div = "УТ (ТЕСТ1 БТ )"
-    #
-    # add_user_to_rol(d_n_user, role, conn)
+
 
     jsn1 = {
 
