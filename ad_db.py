@@ -14,6 +14,8 @@ from datetime import datetime
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
 
+from exchangelib import DELEGATE, Account, Credentials
+
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
 LDAP_BASE_DN = 'DC=rpz,DC=local'
 
@@ -392,11 +394,12 @@ def get_div_rol_descript(div: str, rol='None') -> tuple[str | Any, str | Any, st
         if di in symbol_dict:
             di = symbol_dict[di]
         new_div = new_div + di.rstrip()
-
+        new_div = new_div.replace("'", "")
     for ro in en_rol:
         if ro in symbol_dict:
             ro = symbol_dict[ro]
         new_rol = (new_rol + ro).rstrip()
+        new_rol = new_rol.replace("'", "")
     new_full_rol = f'{new_rol}_{new_div.rstrip("_")}'
     descript = f'{rol.rstrip()} / {div}'
     if len(new_full_rol) > 64:
@@ -408,6 +411,7 @@ def get_div_rol_descript(div: str, rol='None') -> tuple[str | Any, str | Any, st
             if int(d) != 0:
                 lst.append(new_rol_list[i][:int(d)])
         new_rol = '_'.join(lst)
+        new_rol = new_rol.replace("'", "")
         new_full_rol = f'{new_rol}_{new_div.rstrip("_")}'
 
     return new_div, new_full_rol, descript
@@ -424,6 +428,8 @@ def get_division(st: str) -> str:
         new_st = new_st + s
         if not counter:
             break
+    new_st = new_st.replace("'", "")
+
     return new_st
 
 
@@ -494,7 +500,7 @@ def from_file_to_ad_prepare(file_in):
             set_main_descript(main, div, descr)
 
 
-###foo1
+###foo1 Подготовка AD создание групп и назначения прав для групп (Roles)
 def from_file_role_create(file_in, file_out):
     with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
         with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
@@ -545,7 +551,7 @@ def from_file_role_create(file_in, file_out):
     return True
 
 
-##!!!foo2
+##!!!foo2 Подготовка AD реализация наследования Div -- Role -- User
 def from_file_role_security(file_in, file_out):
     with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
         with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
@@ -651,20 +657,132 @@ def find_member_of_group(dn, conn):
     return member_of
 
 
+
+def create_mailbox():
+    credentials = Credentials(
+        username='MYDOMAIN\\myusername',  # Or me@example.com for O365
+        password='topsecret'
+    )
+    a = Account(
+        primary_smtp_address='john@example.com',
+        credentials=credentials,
+        autodiscover=True,
+        access_type=DELEGATE
+    )
+    # Print first 100 inbox messages in reverse order
+    for item in a.inbox.all().only('subject').order_by('-datetime_received')[:100]:
+        print(item.subject)
+
+
+def file_prep(file1_in, file2_in, file_out):
+    with open(f'/home/project/AD_INTEGRATION/data/{file1_in}', 'r+', encoding='UTF-8') as all:
+        with open(f'/home/project/AD_INTEGRATION/data/{file2_in}', 'r+', encoding='UTF-8') as set:
+            with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+                s = set.read().split()
+                for single in all:
+                    n = single.split(';')[3]
+                    if n in s:
+                        new_file.write(f'{single}')
+
+
+def file_prep_role(file_in):
+    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as all:
+        for single in all:
+            division = single.split(';')[0]
+            role = single.split(';')[1]
+
+    return division, role
+
+def del_sign_group_div(file_in: str, ldap_base_dn: str = LDAP_BASE_DN, file_out='rem_all.txt') -> bool:
+    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as all:
+        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+
+            for single in all:
+                division = single.split(';')[0]
+                roles = single.split(';')[1]
+
+                for j in (0, 1):
+
+                    gp = get_div_rol_descript(division, roles)[j]
+
+                    search_filter = f"(cn={gp})"
+                    with ldap_conn() as c:
+                        c.search(search_base=ldap_base_dn,
+                                 search_filter=search_filter,
+                                 search_scope=SUBTREE,
+                                 attributes=ALL_ATTRIBUTES,
+                                 get_operational_attributes=True)
+                        ad_atr_list: Optional[list[dict]] = json.loads(c.response_to_json())['entries']
+
+                        if ad_atr_list:
+                            attr_group = ad_atr_list[0]['attributes']
+                            dn_group = attr_group['distinguishedName']
+                            cn_group = dn_group.split(',')[0]
+                            if "'" in cn_group:
+                                new_cn_group = cn_group.replace("'", "")
+                                # print(new_cn_group)
+                                # print(dn_group)
+                                # print(cn_group)
+                                status, i = ('OK', 'Error in process'), 1
+                                c.modify_dn(dn_group, new_cn_group)
+                                msg = f'{status[c.result["result"]]}! Rename {cn_group} to {new_cn_group}. {c.result}'
+                                new_file.write(f'{msg}\n')
+                            else:
+                                msg = f'OK. Sign not found in group\n'
+                                new_file.write(f'{msg}\n')
+                        else:
+                            msg = f'Error. {gp} not found\n'
+                            new_file.write(f'{msg}')
+
+    return True
+
+
+
 if __name__ == '__main__':
+    div = "МТ (ТЕСТъ1 БО)"
+    rol = "Специальный агент 007"
+
+    # div = "УТ (ТЕСТ1 БТъ )"
+    # rol = "Специальный агент 002"
+
+    div1 = "МТ (ТЕСьььььТ1ь БО)"
+    rol1 = "ъъъъСпециальный агент 007ь"
+
+    file_in = 'r.txt'
+    file_out = 'rr.txt'
+
+
+
+
+    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as all:
+
+        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+            r_set = set()
+            for single in all:
+                r_set.add(single)
+            for st in r_set:
+                new_file.write(f'{st}')
+
+
+    # print(get_div_rol_descript(div, rol))
+    # print(get_division(div))
+
+    # file_prep('all.csv', 'r2.csv', '1.csv')
+
     '''
       f = 'roles.csv'
         ff = 'xmo1.txt'
         print(from_file_role_create(f, ff))
         # print(from_file_role_security(f, ff))
     '''
-    # f = 'roles.csv'
-    # ff = 'xmo1.txt'
+    # f = '.csv'
+    # ff = '1_1.txt'
     # print(from_file_role_create(f, ff))
     # # print(from_file_role_security(f, ff))
 
-    print(next(login_generator('Перье', 'Вальдемар', 'Илсссячся')))
-    print(next(login_generator('Перье', 'Вальдемар', 'ИльсссъЪЪЪЪячсьььья')))
+    # print(next(login_generator('Перье', 'Вальдемар', 'Илсссячся')))
+    # print(next(login_generator('Перье', 'Вальдемар', 'ИльсссъЪЪЪЪячсьььья')))
+
 
 
 
