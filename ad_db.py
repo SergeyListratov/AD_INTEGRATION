@@ -1,5 +1,4 @@
 import json
-import re
 
 from ldap3 import Server, Connection, SUBTREE, ALL_ATTRIBUTES, Tls, MODIFY_REPLACE, ALL
 from ldap3.core.exceptions import LDAPInvalidDnError
@@ -138,6 +137,8 @@ def find_ad_groups(
 в новое подразделение. Удаляет все группы доступа пользователя и добавляет группe доступа по умолчанию для нового 
 подразделения (новой должности) через включение ее в группу в UO=Divivsion.
 Возврещеет список словарей с описанием действия и статусом.
+
+Доработать: Создание Roles, если не существует. Если не существует Divisions, то создавать в OU 0001_NEW_.
 '''
 
 
@@ -737,31 +738,70 @@ def del_sign_group_div(file_in: str, ldap_base_dn: str = LDAP_BASE_DN, file_out=
     return True
 
 
+#for search_sign
+def search_gp_user(gp_name, ldap_base_dn: str = LDAP_BASE_DN):
+    gp_dict = dict()
+    search_filter = f"(cn={gp_name})"
+    with ldap_conn() as c:
+        c.search(search_base=ldap_base_dn,
+                    search_filter=search_filter,
+                    search_scope=SUBTREE,
+                    attributes=['member'],
+                    get_operational_attributes=True)
+
+        ad_atr_list: Optional[list[dict]] = json.loads(c.response_to_json())['entries']
+        gp_dict['dn'] = ad_atr_list[0]['dn']
+        gp_dict['member'] = ad_atr_list[0]['attributes']['member']
+
+    return gp_dict
+
+
+# for search_sign
+def from_list_to_gp(member_lst: list, dn_group):
+    added_usr = list()
+    with ldap_conn() as conn:
+        for dn_user in member_lst:
+            result = ad_add_members_to_groups(conn, dn_user, dn_group)
+            if result:
+                added_usr.append(dn_user)
+
+    return added_usr
+
+
+
+
+
+#Возвращение прав пользователям напрямую, для групп рассылки #######
+def search_sign(group_name: str, file_out='1.txt') -> dict:
+
+    with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+        gp_dict = search_gp_user(group_name)
+        gp_dn = gp_dict['dn']
+        roles_list = gp_dict['member']
+        for gp in roles_list:
+            if 'Roles' in gp:
+                cn = gp.split(',')[0][3:]
+                usr_dict = (search_gp_user(cn))
+                # result = from_list_to_gp(usr_dict['member'], gp_dn)
+                with ldap_conn() as conn:
+                    for dn_user in usr_dict['member']:
+                        result = ad_add_members_to_groups(conn, dn_user, gp_dn)
+                        if result:
+                            msg = f'Ok. ({dn_user.split(",")[0][3:]} - {cn}) {result}\n'
+                        else:
+                            msg = f'Error. ({dn_user.split(",")[0][3:]} - {cn}) {result}\n'
+                        new_file.write(msg)
+
+    return True
+
+
+
 
 if __name__ == '__main__':
-    div = "МТ (ТЕСТъ1 БО)"
-    rol = "Специальный агент 007"
-
-    # div = "УТ (ТЕСТ1 БТъ )"
-    # rol = "Специальный агент 002"
-
-    div1 = "МТ (ТЕСьььььТ1ь БО)"
-    rol1 = "ъъъъСпециальный агент 007ь"
-
-    file_in = 'r.txt'
-    file_out = 'rr.txt'
 
 
 
-
-    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as all:
-
-        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
-            r_set = set()
-            for single in all:
-                r_set.add(single)
-            for st in r_set:
-                new_file.write(f'{st}')
+    print(search_sign('LotsiaMonitor'))
 
 
     # print(get_div_rol_descript(div, rol))
@@ -775,13 +815,7 @@ if __name__ == '__main__':
         print(from_file_role_create(f, ff))
         # print(from_file_role_security(f, ff))
     '''
-    # f = '.csv'
-    # ff = '1_1.txt'
-    # print(from_file_role_create(f, ff))
-    # # print(from_file_role_security(f, ff))
 
-    # print(next(login_generator('Перье', 'Вальдемар', 'Илсссячся')))
-    # print(next(login_generator('Перье', 'Вальдемар', 'ИльсссъЪЪЪЪячсьььья')))
 
 
 
@@ -790,10 +824,10 @@ if __name__ == '__main__':
 
         "first_name": "Дмитрий",
         "other_name": "Петрович",
-        "last_name": "Бондд",
-        "number": "33997",
+        "last_name": "Тест",
+        "number": "33999",
         "division": "УТ (ТЕСТ1 БТ )",
-        "role": "Специальный агент 002",
+        "role": "Специальная тестовая должность 1",
         "action": "create"
 
     }
@@ -801,20 +835,20 @@ if __name__ == '__main__':
     jsn2 = {
         "first_name": "Дмитрий",
         "other_name": "Петрович",
-        "last_name": "Бондд",
-        "number": "33997",
+        "last_name": "Тест",
+        "number": "33999",
         "division": "МТ (ТЕСТ1 БО)",
-        "role": "Специальный агент 007",
+        "role": "Специальная тестовая должность 2",
         "action": "transfer"
     }
 
     jsn3 = {
         "first_name": "Дмитрий",
         "other_name": "Петрович",
-        "last_name": "Бондд",
-        "number": "33997",
+        "last_name": "Тест",
+        "number": "33999",
         "division": "МТ (ТЕСТ1 БО)",
-        "role": "Спецагент 007",
+        "role": "Специальная тестовая должность 2",
         "action": "dismiss"
     }
 
