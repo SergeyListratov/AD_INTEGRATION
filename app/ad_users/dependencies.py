@@ -143,7 +143,7 @@ def find_ad_groups(
 
 
 def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: str, division: str, role: str,
-                     action='transfer', group_legacy=False, ad_role_present=False) -> dict[str, str | Any]:
+                     action='transfer', group_legacy=False, ad_role_present=True) -> dict[str, str | Any]:
     user = f'{first_name}, {other_name}, {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
     find_group = find_ad_groups(division)
@@ -178,9 +178,16 @@ def transfer_ad_user(first_name: str, other_name: str, last_name: str, number: s
                     add_user_to_rol(d_n_new, rol_en, conn)
                     msg = f'OK: User {user} was remove from {removed_groups} to {member_of} division with new role:{role}.'
                 except LDAPInvalidDnError:
-                    conn.extend.microsoft.add_members_to_groups(d_n_new, member_of)
-                    msg = (f'OK BUT ROLE not set: User {user} was remove from {removed_groups} to {member_of} division.'
-                           f' BUT not added to role group:{role}. (role {get_division(role)} not found)')
+
+                    new_rol_dn = set_role_descript(get_main(d_n_new), rol_en, descript, conn)
+
+                    add_role_to_div(new_rol_dn, div_en, conn)
+
+                    add_user_to_rol(d_n_new, rol_en, conn)
+                    # conn.extend.microsoft.add_members_to_groups(d_n_new, member_of)
+                    msg = (
+                        f'OK: BUT Role {rol_en} was created: User {user} was remove from {removed_groups} to {member_of} division with new role:{role}.')
+
 
             else:
                 # conn.extend.microsoft.add_members_to_groups(d_n_new, member_of)  Temproary
@@ -273,6 +280,7 @@ def create_ad_user(
     init = any(map(lambda i: 'initials' in i, find_user))
     find_group = find_ad_groups(division)
     login = get_login(first_name, other_name, last_name)
+    div_en, rol_en, descript = get_div_rol_descript(division, role)
     if find_group and not init:
         pre_d_n_user = find_group[0]['new_pre_distinguishedName']
         d_n_group = find_group[0]['group_distinguishedName']
@@ -309,13 +317,29 @@ def create_ad_user(
             # conn.modify(new_user_dn, changes=enable_account)
             # Add groups
 
-            msg = f'OK. User {new_user_dn} was created in role {get_division(role)}.'
+            msg = f'OK. User {new_user_dn} was created in role {rol_en}.'
+
+            # try:
+            #     add_user_to_rol(new_user_dn, role, conn)
+            # except LDAPInvalidDnError:
+            #     conn.extend.microsoft.add_members_to_groups(new_user_dn, d_n_group)
+            #     msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
 
             try:
-                add_user_to_rol(new_user_dn, role, conn)
+                add_user_to_rol(new_user_dn, rol_en, conn)
+                msg = f'OK: User {new_user_dn} was created in division {div_en} with role:{role}.'
             except LDAPInvalidDnError:
-                conn.extend.microsoft.add_members_to_groups(new_user_dn, d_n_group)
-                msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
+
+                new_rol_dn = set_role_descript(get_main(new_user_dn), rol_en, descript, conn)
+
+                add_role_to_div(new_rol_dn, div_en, conn)
+
+                add_user_to_rol(new_user_dn, rol_en, conn)
+                # conn.extend.microsoft.add_members_to_groups(d_n_new, member_of)
+                msg = (
+                    f'OK: BUT Role {rol_en} was created. User {new_user_dn} was created in division {div_en} with new role:{role}.')
+
+
 
             # conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
             # msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
@@ -457,6 +481,7 @@ def del_sign(wrd: str) -> str:
 
     return new_wrd
 
+
 def get_infra_ou(main: str):
     return [
         f"OU=Divisions,OU={main},DC=rpz,DC=local", f"OU=Roles,OU={main},DC=rpz,DC=local",
@@ -526,7 +551,7 @@ def from_file_role_create(file_in, file_out):
                             new_file.write(f'DISMISSED USER {last}, {first}, {other}, {number}\n')
                             continue
 
-                        if d_n.split(',')[-3][3:] not in div: ## trffnsfer User
+                        if d_n.split(',')[-3][3:] not in div:  ## trffnsfer User
                             res = transfer_ad_user(first, other, last, number, div_ru, role_ru, group_legacy=True)
                             new_file.write(
                                 f'DivisionNotFound AND USER was transfered: {res}\n')
@@ -658,7 +683,6 @@ def find_member_of_group(dn, conn):
     return member_of
 
 
-
 def create_mailbox():
     credentials = Credentials(
         username='MYDOMAIN\\myusername',  # Or me@example.com for O365
@@ -693,6 +717,7 @@ def file_prep_role(file_in):
             role = single.split(';')[1]
 
     return division, role
+
 
 def del_sign_group_div(file_in: str, ldap_base_dn: str = LDAP_BASE_DN, file_out='rem_all.txt') -> bool:
     with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as all:
@@ -738,16 +763,16 @@ def del_sign_group_div(file_in: str, ldap_base_dn: str = LDAP_BASE_DN, file_out=
     return True
 
 
-#for search_sign
+# for search_sign
 def search_gp_user(gp_name, ldap_base_dn: str = LDAP_BASE_DN):
     gp_dict = dict()
     search_filter = f"(cn={gp_name})"
     with ldap_conn() as c:
         c.search(search_base=ldap_base_dn,
-                    search_filter=search_filter,
-                    search_scope=SUBTREE,
-                    attributes=['member'],
-                    get_operational_attributes=True)
+                 search_filter=search_filter,
+                 search_scope=SUBTREE,
+                 attributes=['member'],
+                 get_operational_attributes=True)
 
         ad_atr_list: Optional[list[dict]] = json.loads(c.response_to_json())['entries']
         gp_dict['dn'] = ad_atr_list[0]['dn']
@@ -768,12 +793,8 @@ def from_list_to_gp(member_lst: list, dn_group):
     return added_usr
 
 
-
-
-
-#Возвращение прав пользователям напрямую, для групп рассылки #######
-def search_sign(group_name: str, file_out='1.txt') -> bool:
-
+# Возвращение прав пользователям напрямую, для групп рассылки #######
+def search_sign(group_name: str, file_out='1.txt') -> dict:
     with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
         gp_dict = search_gp_user(group_name)
         gp_dn = gp_dict['dn']
@@ -793,8 +814,6 @@ def search_sign(group_name: str, file_out='1.txt') -> bool:
                         new_file.write(msg)
 
     return True
-
-
 
 
 
