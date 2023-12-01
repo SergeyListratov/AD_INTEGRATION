@@ -17,6 +17,8 @@ from exchangelib import DELEGATE, Account, Credentials
 
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
 LDAP_BASE_DN = 'DC=rpz,DC=local'
+I_LDAP_BASE_DN = 'DC=rpz,DC=test'
+
 
 '''
 Функция director  через фабрику функций запускает нужную функцию по ключу "action" из POST запроса 
@@ -339,7 +341,114 @@ def create_ad_user(
                 msg = (
                     f'OK: BUT Role {rol_en} was created. User {new_user_dn} was created in division {div_en} with new role:{role}.')
 
+            # conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
+            # msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
+            AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data['email'], AdUsersDAO.data[
+                'login_name'] = 'OK', msg, user_ad_attr['userPrincipalName'], login
+    else:
+        msg = (f'ERROR: User {c_n} was not created: tabel_number in use, or division not found. '
+               f'find_ad_groups or find_ad_users get: []')
+        AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data['email'] = 'ERROR', msg, 'ERROR'
 
+    result_dict = get_result(AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data['email'])
+    return result_dict
+
+
+''' Creatre Users in internet domian'''
+
+
+def find_group_member(group='To_internet'):
+    cn = group
+    user_list = search_gp_user(cn)['member']
+
+    return user_list
+
+    # if ad_atr_list:
+    #     for ad_atr in ad_atr_list:
+    #         if 'memberOf' in ad_atr['attributes']:
+    #             ad_dict = {'pre_distinguishedName': ad_atr['attributes']['distinguishedName'],
+    #                        'group_distinguishedName': ad_atr['attributes']['distinguishedName'],
+    #                        'new_pre_distinguishedName': ad_atr['attributes']['distinguishedName'],
+    #                        'Division': ad_atr['attributes']['cn'],
+    #                        'memberOf': ad_atr['attributes']['memberOf']
+    #                        }
+    #             find_grp_list.append(ad_dict)
+    #         else:
+    #             ad_dict = {'pre_distinguishedName': ad_atr['attributes']['distinguishedName'],
+    #                        'group_distinguishedName': ad_atr['attributes']['distinguishedName'],
+    #                        'new_pre_distinguishedName': ad_atr['attributes']['distinguishedName'],
+    #                        'Division': ad_atr['attributes']['cn']
+    #                        }
+    #             find_grp_list.append(ad_dict)
+
+
+def create_i_ad_user(
+        first_name: str, other_name: str, last_name: str, number: str, division: str, role: str, action='creat'
+) -> dict[str, str | Any]:
+    new_pass = 'Qwerty1'
+    c_n = f'{first_name} {other_name} {last_name}'
+    find_user = find_ad_users(first_name, other_name, last_name, number)
+    init = any(map(lambda i: 'initials' in i, find_user))
+    find_group = find_ad_groups(division)
+    login = get_login(first_name, other_name, last_name)
+    div_en, rol_en, descript = get_div_rol_descript(division, role)
+    if find_group and not init:
+        pre_d_n_user = find_group[0]['new_pre_distinguishedName']
+        d_n_group = find_group[0]['group_distinguishedName']
+        new_user_dn = f'CN={c_n},{pre_d_n_user}'
+        user_ad_attr = {
+            "displayName": c_n,
+            "sAMAccountName": login,
+            "userPrincipalName": f'{login}@rpz.local',
+            "name": c_n,
+            "givenName": first_name,
+            "sn": last_name,
+            'department': division,
+            'company': 'АО РПЗ',
+            'title': role,
+            'initials': number,
+            'description': role
+        }
+        with (ldap_conn() as conn):
+            result = conn.add(dn=new_user_dn, object_class=OBJECT_CLASS, attributes=user_ad_attr)
+            if not result:
+                msg = f'ERROR: User {new_user_dn} was not created: {conn.result.get("description")}'
+                AdUsersDAO.data['status'], AdUsersDAO.data['message'], AdUsersDAO.data['email'] = 'ERROR', msg, 'ERROR'
+
+                result_dict = get_result(SAdUser.status, SAdUser.msg, SAdUser.email)
+                return result_dict
+
+            # unlock and set password
+            conn.extend.microsoft.unlock_account(user=new_user_dn)
+            conn.extend.microsoft.modify_password(user=new_user_dn,
+                                                  new_password=new_pass,
+                                                  old_password=None)
+            # Enable account - must happen after user password is set
+            # enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
+            # conn.modify(new_user_dn, changes=enable_account)
+            # Add groups
+
+            msg = f'OK. User {new_user_dn} was created in role {rol_en}.'
+
+            # try:
+            #     add_user_to_rol(new_user_dn, role, conn)
+            # except LDAPInvalidDnError:
+            #     conn.extend.microsoft.add_members_to_groups(new_user_dn, d_n_group)
+            #     msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
+
+            try:
+                add_user_to_rol(new_user_dn, rol_en, conn)
+                msg = f'OK: User {new_user_dn} was created in division {div_en} with role:{role}.'
+            except LDAPInvalidDnError:
+
+                new_rol_dn = set_role_descript(get_main(new_user_dn), rol_en, descript, conn)
+
+                add_role_to_div(new_rol_dn, div_en, conn)
+
+                add_user_to_rol(new_user_dn, rol_en, conn)
+                # conn.extend.microsoft.add_members_to_groups(d_n_new, member_of)
+                msg = (
+                    f'OK: BUT Role {rol_en} was created. User {new_user_dn} was created in division {div_en} with new role:{role}.')
 
             # conn.extend.microsoft.add_members_to_groups([new_user_dn], d_n_group)
             # msg = f'OK. User {new_user_dn} was created in division {d_n_group}.'
@@ -380,6 +489,11 @@ def get_login(first_name, other_name, last_name):
 def ldap_conn():
     server = Server(settings.AD_SERVER_IP, use_ssl=False, get_info=ALL)
     return Connection(server, user=settings.AD_USER, password=settings.AD_PASS, auto_bind=True)
+
+
+def i_ldap_conn():
+    server = Server(settings.I_AD_SERVER_IP, use_ssl=False, get_info=ALL)
+    return Connection(server, user=settings.I_AD_USER, password=settings.I_AD_PASS, auto_bind=True)
 
 
 def get_dn(first_name: str, other_name: str, last_name: str, number: str, division: str):
@@ -481,6 +595,7 @@ def del_sign(wrd: str) -> str:
 
     return new_wrd
 
+
 def get_infra_ou(main: str):
     return [
         f"OU=Divisions,OU={main},DC=rpz,DC=local", f"OU=Roles,OU={main},DC=rpz,DC=local",
@@ -550,7 +665,7 @@ def from_file_role_create(file_in, file_out):
                             new_file.write(f'DISMISSED USER {last}, {first}, {other}, {number}\n')
                             continue
 
-                        if d_n.split(',')[-3][3:] not in div: ## trffnsfer User
+                        if d_n.split(',')[-3][3:] not in div:  ## trffnsfer User
                             res = transfer_ad_user(first, other, last, number, div_ru, role_ru, group_legacy=True)
                             new_file.write(
                                 f'DivisionNotFound AND USER was transfered: {res}\n')
@@ -682,7 +797,6 @@ def find_member_of_group(dn, conn):
     return member_of
 
 
-
 def create_mailbox():
     credentials = Credentials(
         username='MYDOMAIN\\myusername',  # Or me@example.com for O365
@@ -717,6 +831,7 @@ def file_prep_role(file_in):
             role = single.split(';')[1]
 
     return division, role
+
 
 def del_sign_group_div(file_in: str, ldap_base_dn: str = LDAP_BASE_DN, file_out='rem_all.txt') -> bool:
     with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as all:
@@ -762,16 +877,16 @@ def del_sign_group_div(file_in: str, ldap_base_dn: str = LDAP_BASE_DN, file_out=
     return True
 
 
-#for search_sign
-def search_gp_user(gp_name, ldap_base_dn: str = LDAP_BASE_DN):
+# for search_sign
+def search_gp_user(gp_name, ldap_base_dn: str = LDAP_BASE_DN, ldap_conn=ldap_conn):
     gp_dict = dict()
     search_filter = f"(cn={gp_name})"
     with ldap_conn() as c:
         c.search(search_base=ldap_base_dn,
-                    search_filter=search_filter,
-                    search_scope=SUBTREE,
-                    attributes=['member'],
-                    get_operational_attributes=True)
+                 search_filter=search_filter,
+                 search_scope=SUBTREE,
+                 attributes=['member'],
+                 get_operational_attributes=True)
 
         ad_atr_list: Optional[list[dict]] = json.loads(c.response_to_json())['entries']
         gp_dict['dn'] = ad_atr_list[0]['dn']
@@ -792,12 +907,8 @@ def from_list_to_gp(member_lst: list, dn_group):
     return added_usr
 
 
-
-
-
-#Возвращение прав пользователям напрямую, для групп рассылки #######
+# Возвращение прав пользователям напрямую, для групп рассылки #######
 def search_sign(group_name: str, file_out='1.txt') -> dict:
-
     with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
         gp_dict = search_gp_user(group_name)
         gp_dn = gp_dict['dn']
@@ -805,7 +916,7 @@ def search_sign(group_name: str, file_out='1.txt') -> dict:
         for gp in roles_list:
             if 'Roles' in gp:
                 cn = gp.split(',')[0][3:]
-                usr_dict = (search_gp_user(cn))
+                usr_dict = search_gp_user(cn)
                 # result = from_list_to_gp(usr_dict['member'], gp_dn)
                 with ldap_conn() as conn:
                     for dn_user in usr_dict['member']:
@@ -819,14 +930,9 @@ def search_sign(group_name: str, file_out='1.txt') -> dict:
     return True
 
 
-
-
 if __name__ == '__main__':
-
-
-
-    print(search_sign('LotsiaMonitor'))
-
+    # print(i_ldap_conn())
+    print(find_group_member())
 
     # print(get_div_rol_descript(div, rol))
     # print(get_division(div))
@@ -839,10 +945,6 @@ if __name__ == '__main__':
         print(from_file_role_create(f, ff))
         # print(from_file_role_security(f, ff))
     '''
-
-
-
-
 
     jsn1 = {
 
