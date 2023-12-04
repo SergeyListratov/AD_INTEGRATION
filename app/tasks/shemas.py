@@ -4,9 +4,9 @@ from pydantic import BaseModel
 from fastapi import Query
 
 
-class SFrom1C(BaseModel):
+class SInet(BaseModel):
 
-    status: Query(pattern='new|done')
+    status: Query(pattern='ok|error')
     first_name: str
     other_name: str
     last_name: str
@@ -14,5 +14,5 @@ class SFrom1C(BaseModel):
     division: str
     role: str
     action_data: date
-    action: str = Query(pattern='dismiss|create|transfer')
+    # action: str = Query(pattern='dismiss|create|transfer')
 

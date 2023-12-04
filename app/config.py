@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     I_AD_SERVER_IP: str
     I_AD_USR: str
 
+    post_user: str
+    post_user_pass: str
+
+
+
     @property
     def DATABASE_URL(self):
         return f'postgresql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}'
