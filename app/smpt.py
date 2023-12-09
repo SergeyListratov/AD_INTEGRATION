@@ -4,10 +4,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 
-def post(sub, text, to):
-    letter_from = "rpz_bot1@rpz.local"
+def post(sub, text, to, letter_from="rpz_bot1@rpz.local"):
     with smtplib.SMTP("mail.rpz.local", 587) as smtp_server:
-        # smtp_server = smtplib.SMTP("mail.rpz.local", 587)
         smtp_server.starttls()
         smtp_server.login(settings.post_user, settings.post_user_pass)
 
@@ -26,5 +24,4 @@ def post(sub, text, to):
         # Отправка письма
         smtp_server.sendmail(letter_from, to, msg.as_string())
 
-# Закрытие соединения
-# smtp_server.quit()
+    return True

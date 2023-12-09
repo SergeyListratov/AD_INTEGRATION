@@ -2,17 +2,15 @@ import json
 import string
 import random
 
+import asyncio
 from ldap3 import Server, Connection, SUBTREE, ALL_ATTRIBUTES, Tls, MODIFY_REPLACE, ALL
-from ldap3.core.exceptions import LDAPInvalidDnError
 
 from app.tasks.dao import InetDAO
 from app.config import settings
-from typing import Optional, Dict, Any, Tuple
-from datetime import datetime
+from typing import Optional, Any
 
 from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
-
 
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
 LDAP_BASE_DN = 'DC=rpz,DC=local'
@@ -29,7 +27,7 @@ def i_ldap_conn():
     return Connection(server, user=settings.I_AD_USER, password=settings.I_AD_PASS, auto_bind=True)
 
 
-''' Creatre Users in internet domian'''
+''' Create Users in internet domain'''
 
 
 def find_group_member_for_internet(group='To_internet') -> Optional[list[dict]]:
@@ -73,8 +71,8 @@ def search_gp_user(gp_name, ldap_base_dn: str = LDAP_BASE_DN, ldap_conn=ldap_con
 
 def get_usr_attr(usr_name, ldap_base_dn: str = LDAP_BASE_DN, ldap_conn=ldap_conn):
     user_attr_tuple = (
-    'company', 'department', 'description', 'initials', 'sAMAccountName', 'telephoneNumber', 'title', 'sn', 'cn',
-    'displayName', 'givenName')
+        'company', 'department', 'description', 'initials', 'sAMAccountName', 'telephoneNumber', 'title', 'sn', 'cn',
+        'displayName', 'givenName')
     usr_dict = dict()
     search_filter = f"(cn={usr_name})"
     with ldap_conn() as c:
@@ -99,7 +97,6 @@ def get_usr_attr(usr_name, ldap_base_dn: str = LDAP_BASE_DN, ldap_conn=ldap_conn
 def trans_to_groups(dn_usr):
     dn_gp_in = 'CN=Internet,OU=Access,OU=Groups,DC=rpz,DC=local'
     dn_gp_out = 'CN=To_internet,OU=Access,OU=Groups,DC=rpz,DC=local'
-    print(dn_usr)
     with ldap_conn() as conn:
         result_add = ad_add_members_to_groups(conn, dn_usr, dn_gp_in)
         result_del = ad_remove_members_from_groups(conn, dn_usr, dn_gp_out, fix=False)
@@ -107,7 +104,7 @@ def trans_to_groups(dn_usr):
     return result_add, result_del
 
 
-async def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any] | dict[Any, Any]:
+def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any] | dict[Any, Any]:
     result_dict = dict()
     i_usr_list = find_group_member_for_internet()
     if i_usr_list:
@@ -128,7 +125,11 @@ async def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any]
                     msg = f'ERROR: User {usr["dn"].split(",")[0][3:]} was not created: {conn.result.get("description")}'
                     InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password'] = 'ERROR', msg, 'ERROR'
                     result_dict = InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password']
-                    await InetDAO.add()
+
+                    loop = asyncio.get_event_loop()
+                    loop.run_until_complete(InetDAO.add())
+
+                    InetDAO.postal()
 
                     return result_dict
 
@@ -146,12 +147,19 @@ async def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any]
                 gp = 'CN=intrfu,CN=Users,DC=RPZ,DC=TEST'
                 result_inet = ad_add_members_to_groups(conn, usr['dn'], gp)
                 result_local = trans_to_groups(usr['dn_local'])
-                print(result_local)
-                msg = f"OK. User {usr['dn'].split(',')[0][3:]} with pass {new_pass} was created in division {usr['dn'].split(',')[1][3:]} and added to group: {gp.split(',')[0][3:]}."
+                msg = f"OK. User {usr['dn'].split(',')[0][3:]} with pass '{new_pass}' was created in division {usr['dn'].split(',')[1][3:]} and added to group: {gp.split(',')[0][3:]}."
                 InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password'] = 'OK', msg, new_pass
-                result_dict = InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password'], InetDAO.data['login_name']
+                result_dict = InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password'], InetDAO.data[
+                    'login_name']
 
-                await InetDAO.add()
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(InetDAO.add())
+
+                InetDAO.postal()
+                mailto = f'{InetDAO.data["login_name"]}@rpz.local'
+                InetDAO.postal(to=mailto)
+
+                InetDAO.keepass()
 
                 return result_dict
 
@@ -159,55 +167,4 @@ async def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any]
         return result_dict
 
 
-if __name__ == '__main__':
-    # print(i_ldap_conn())
 
-    # print(password_generator())
-    create_i_ad_user()
-
-    # print(get_div_rol_descript(div, rol))
-    # print(get_division(div))
-
-    # file_prep('all.csv', 'r2.csv', '1.csv')
-
-    '''
-      f = 'roles.csv'
-        ff = 'xmo1.txt'
-        print(from_file_role_create(f, ff))
-        # print(from_file_role_security(f, ff))
-    '''
-
-    jsn1 = {
-
-        "first_name": "Дмитрий",
-        "other_name": "Петрович",
-        "last_name": "Тест",
-        "number": "33999",
-        "division": "УТ (ТЕСТ1 БТ )",
-        "role": "Специальная тестовая должность 1",
-        "action": "create"
-
-    }
-
-    jsn2 = {
-        "first_name": "Дмитрий",
-        "other_name": "Петрович",
-        "last_name": "Тест",
-        "number": "33999",
-        "division": "МТ (ТЕСТ1 БО)",
-        "role": "Специальная тестовая должность 2",
-        "action": "transfer"
-    }
-
-    jsn3 = {
-        "first_name": "Дмитрий",
-        "other_name": "Петрович",
-        "last_name": "Тест",
-        "number": "33999",
-        "division": "МТ (ТЕСТ1 БО)",
-        "role": "Специальная тестовая должность 2",
-        "action": "dismiss"
-    }
-
-# ad = director(jsn3)
-# print(ad)

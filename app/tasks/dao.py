@@ -1,14 +1,9 @@
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-
 from sqlalchemy import insert, select
-
-from app.config import settings
 from app.dao.base import BaseDAO
+from app.keepas import to_keepass
 from app.tasks.models import Inet
 from app.database import async_session_maker
-
+from app.smpt import post
 
 
 class InetDAO(BaseDAO):
@@ -24,24 +19,35 @@ class InetDAO(BaseDAO):
             await session.commit()
 
     @classmethod
-    def post(cls, sub, text, to):
-        letter_from = "rpz_bot1@rpz.local"
-        with smtplib.SMTP("mail.rpz.local", 587) as smtp_server:
-            # smtp_server = smtplib.SMTP("mail.rpz.local", 587)
-            smtp_server.starttls()
-            smtp_server.login(settings.post_user, settings.post_user_pass)
+    def postal(cls, to="OTS_ADM1@rpz.local"):
+        if to == "OTS_ADM1@rpz.local":
 
-            # Создание объекта сообщения
-            msg = MIMEMultipart()
+            sub = f"{cls.data['status']}! Регистрация {cls.data['last_name']} в сети интернет"
+            text = (f" Регистрация пользователя: {cls.data['last_name']} в сети интернет.\n"
+                    f" Статус проведения регистрации: {cls.data['status']}!\n"
+                    f" Логин: {cls.data['login_name']}\n"
+                    f" Пароль: {cls.data['i_password']} \n"
+                    f" Информация: {cls.data['message']}"
+                    f" Отправлено rpz_bot1.")
+        else:
 
-            # Настройка параметров сообщения
-            msg["From"] = letter_from
-            msg["To"] = to
-            msg["Subject"] = sub
+            sub = f"Регистрация пользователя: {cls.data['last_name']} в сети интернет"
+            text = (f" Регистрация пользователя: {cls.data['last_name']} в сети интернет.\n"
+                    f" Статус проведения регистрации: {cls.data['status']}!\n"
+                    f" Ваш логин для доступа к ресурсам интернет: {cls.data['login_name']}\n"
+                    f" Ваш пароль: {cls.data['i_password']} \n\n"
+                    f" Успехов в труде! Коллектив УИТ.")
 
-            # Добавление текста в сообщение
-            text = text
-            msg.attach(MIMEText(text, "plain"))
+        post(sub, text, to)
 
-            # Отправка письма
-            smtp_server.sendmail(letter_from, to, msg.as_string())
+    @classmethod
+    def keepass(cls):
+        name = cls.data['first_name']
+        last_name = cls.data['last_name']
+        password = cls.data['i_password']
+        div = cls.data['division']
+        role = cls.data['role']
+        login = cls.data['login_name']
+        to_keepass()
+
+
