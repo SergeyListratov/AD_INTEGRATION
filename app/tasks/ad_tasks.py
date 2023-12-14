@@ -2,8 +2,13 @@ import json
 import string
 import random
 
+import smbclient
+from pykeepass import PyKeePass
+
 import asyncio
 from ldap3 import Server, Connection, SUBTREE, ALL_ATTRIBUTES, Tls, MODIFY_REPLACE, ALL
+from smb.SMBConnection import SMBConnection
+import tempfile
 
 from app.tasks.dao import InetDAO
 from app.config import settings
@@ -166,5 +171,35 @@ def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any] | dic
     else:
         return result_dict
 
+
+def get_smb_conn():
+    smb_conn = SMBConnection(settings.SMB_USER, settings.SMB_PASS, settings.SMB_SRV,
+                             domain=settings.SMB_DOMAIN, use_ntlm_v2=True,
+                             remote_name=settings.SMB_SRV)
+    smb_conn.connect(settings.SMB_IP, settings.SMB_PORT)
+
+    return smb_conn
+
+
+def kee(smb_conn):
+
+    file_obj = tempfile.NamedTemporaryFile()
+    file_attr, file_size = smb_conn.retrieveFile(settings.SMB_SERVICE, settings.KEEPASS_URL, file_obj)
+    print(file_attr)
+    print(file_size)
+    print(file_obj.read())
+
+
+    file_obj.close()
+
+    # smb_conn = smbclient.SambaClient(server="settings.SMB_SRV", share="pass$",
+    #                             username='settings.SMB_USER', password='settings.SMB_PASS', domain='rpz.local')
+
+    # smb_conn = smbclient.register_session(server=settings.SMB_SRV, username=settings.SMB_USER, password=settings.SMB_PASS,
+    #                                  port=settings.SMB_PORT, auth_protocol='ntlm')
+    # smbclient.stat(r'\\rpz-srv-storage\pass$\test\file1.txt', port=settings.SMB_PORT)
+    # smbclient.stat(r'\\rpz-srv-arhive\storage3')
+
+    return True
 
 

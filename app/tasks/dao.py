@@ -1,6 +1,6 @@
 from sqlalchemy import insert, select
 from app.dao.base import BaseDAO
-from app.keepas import to_keepass
+from app.keepas import to_kee, get_smb_conn
 from app.tasks.models import Inet
 from app.database import async_session_maker
 from app.smpt import post
@@ -44,10 +44,17 @@ class InetDAO(BaseDAO):
     def keepass(cls):
         name = cls.data['first_name']
         last_name = cls.data['last_name']
-        password = cls.data['i_password']
         div = cls.data['division']
         role = cls.data['role']
-        login = cls.data['login_name']
-        to_keepass()
+        title = f'{name} {last_name}'
+        description = f'{div} {role}'
+        result = to_kee(
+            get_smb_conn(),
+            title,
+            cls.data['login_name'],
+            cls.data['i_password'],
+            description
+        )
 
+        return result
 
