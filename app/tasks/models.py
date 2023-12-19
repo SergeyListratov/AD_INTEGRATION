@@ -23,6 +23,7 @@ class Inet(Base):
     i_password: Mapped[str]
     message: Mapped[str]
 
+
     def __str__(self):
         return f"Inet{self.login_name}"
 

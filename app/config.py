@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     AD_USER: str
     AD_SERVER_IP: str
     AD_USR: str
+    AD_GP_IN: str
+    AD_GP_OUT: str
 
     I_AD_LDAP_CON: str
     I_AD_LDAP_CONN: str
@@ -31,9 +33,13 @@ class Settings(BaseSettings):
     I_AD_USER: str
     I_AD_SERVER_IP: str
     I_AD_USR: str
+    I_AD_GROUP: str
+    I_AD_OU: str
 
-    post_user: str
-    post_user_pass: str
+    POST_USER: str
+    POST_USER_PASS: str
+    POST_SERVER: str
+    POST_ADM_GROUP: str
 
     SMB_USER: str
     SMB_PASS: str
@@ -49,6 +55,10 @@ class Settings(BaseSettings):
     KEEPASS_DB: str
     KEEPASS_MASTER_KEY: str
     KEEPASS_IP: str
+    KEEPASS_TEMP_PATH: str
+    KEEPASS_GROUP_NAME: str
+
+    SCHEDULE_TIME:int
 
     @property
     def DATABASE_URL(self):

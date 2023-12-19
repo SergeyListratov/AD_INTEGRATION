@@ -14,7 +14,7 @@ from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
 
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
-LDAP_BASE_DN = 'DC=rpz,DC=local'
+LDAP_BASE_DN = settings.AD_BASE
 
 '''
 Функция director  через фабрику функций запускает нужную функцию по ключу "action" из POST запроса 
@@ -475,7 +475,8 @@ def add_user_to_rol(d_n_user, role, conn):
 
 
 def set_role_descript(main, role, descr, conn):
-    dn = f"CN={role},OU=Roles,OU={main},DC=rpz,DC=local"
+    # dn = f"CN={role},OU=Roles,OU={main},{LDAP_BASE_DN}"
+    dn = f"CN={role},OU=Roles,OU={main},OU=AO_RPZ,{LDAP_BASE_DN}"
     set_descript = {'description': descr}
     result = conn.add(dn, 'Group', set_descript)
     print(f'set role + descript : {role}, {result}')
@@ -483,5 +484,5 @@ def set_role_descript(main, role, descr, conn):
 
 
 def get_main(dn):
-    main = dn.split(',')[-3][3:]
+    main = dn.split(',')[-4][3:]
     return main

@@ -40,32 +40,9 @@ async def ad_integration(ad_user: SAdUser, response_model: SAdUserResponse,
                                                              AdUsersDAO.data['division'], AdUsersDAO.data['role'])
 
         await AdUsersDAO.add()
+        AdUsersDAO.postal()
         return response_model
 
     else:
         raise NotAuthorizedAction
 
-# @router.post('/add')
-# def add_user(new_ad_user: SAdUser, api_user: ApiUsers = Depends(get_current_api_user)):
-#     username = 'g.bond'
-#     forename = new_ad_user.first_name
-#     surname = new_ad_user.last_name
-#     division = 'TEST33'
-#     new_password = 'Qwerty1'
-#     if api_user:
-#         return create_ad_user(username, forename, surname, division, new_password)
-#     else:
-#         raise NotAuthorizedAction
-#
-#
-# @router.post('/transfer')
-# def transfer_user(transferred_user: SAdUser, api_user: ApiUsers = Depends(get_current_api_user)):
-#     username = 'g.bond'
-#     forename = transferred_user.first_name
-#     surname = transferred_user.last_name
-#     division = 'TEST33'
-#     tabel_number = transfer_user.tabel_number
-#     if api_user:
-#         return transfer_ad_user(username, forename, surname, division, tabel_number)
-#     else:
-#         raise NotAuthorizedAction

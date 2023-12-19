@@ -1,8 +1,10 @@
 import json
 import string
 import random
+import time
 
-import smbclient
+import schedule
+
 from pykeepass import PyKeePass
 
 import asyncio
@@ -18,8 +20,8 @@ from ldap3.extend.microsoft.addMembersToGroups import ad_add_members_to_groups
 from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_from_groups
 
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
-LDAP_BASE_DN = 'DC=rpz,DC=local'
-I_LDAP_BASE_DN = 'DC=rpz,DC=test'
+LDAP_BASE_DN = settings.AD_BASE
+I_LDAP_BASE_DN = settings.I_AD_BASE
 
 
 def ldap_conn():
@@ -43,7 +45,7 @@ def find_group_member_for_internet(group='To_internet') -> Optional[list[dict]]:
         for usr in user_list:
             usr_cn = usr.split(',')[0][3:]
             usr_div = usr.split(',')[2]
-            i_usr_dn = f'CN={usr_cn},{usr_div},OU=USERInternal,DC=RPZ,DC=TEST'
+            i_usr_dn = f'CN={usr_cn},{usr_div},{settings.I_AD_OU},{I_LDAP_BASE_DN}'
             usr_dict = get_usr_attr(usr_cn)
             usr_dict['dn'] = i_usr_dn
             i_usr_list.append(usr_dict)
@@ -53,7 +55,13 @@ def find_group_member_for_internet(group='To_internet') -> Optional[list[dict]]:
 
 def password_generator(length=8):
     characters = string.ascii_letters + string.digits
-    password = ''.join(random.choice(characters) for _ in range(length))
+    psw_d = ''.join(random.choice(string.digits) for _ in range(1))
+    psw_l = ''.join(random.choice(string.ascii_letters) for _ in range(1))
+    psw_all = ''.join(random.choice(characters) for _ in range(length - 2))
+    characters = psw_d + psw_l + psw_all
+    lst = list(characters)
+    random.shuffle(lst)
+    password = ''.join(lst).rstrip().lstrip()
     return password
 
 
@@ -77,7 +85,7 @@ def search_gp_user(gp_name, ldap_base_dn: str = LDAP_BASE_DN, ldap_conn=ldap_con
 def get_usr_attr(usr_name, ldap_base_dn: str = LDAP_BASE_DN, ldap_conn=ldap_conn):
     user_attr_tuple = (
         'company', 'department', 'description', 'initials', 'sAMAccountName', 'telephoneNumber', 'title', 'sn', 'cn',
-        'displayName', 'givenName')
+        'displayName', 'givenName', 'userPrincipalName')
     usr_dict = dict()
     search_filter = f"(cn={usr_name})"
     with ldap_conn() as c:
@@ -100,8 +108,8 @@ def get_usr_attr(usr_name, ldap_base_dn: str = LDAP_BASE_DN, ldap_conn=ldap_conn
 
 
 def trans_to_groups(dn_usr):
-    dn_gp_in = 'CN=Internet,OU=Access,OU=Groups,DC=rpz,DC=local'
-    dn_gp_out = 'CN=To_internet,OU=Access,OU=Groups,DC=rpz,DC=local'
+    dn_gp_in = settings.AD_GP_IN
+    dn_gp_out = settings.AD_GP_OUT
     with ldap_conn() as conn:
         result_add = ad_add_members_to_groups(conn, dn_usr, dn_gp_in)
         result_del = ad_remove_members_from_groups(conn, dn_usr, dn_gp_out, fix=False)
@@ -115,12 +123,57 @@ def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any] | dic
     if i_usr_list:
         with i_ldap_conn() as conn:
             for usr in i_usr_list:
-                InetDAO.data['first_name'] = usr['attributes']['givenName']
-                InetDAO.data['last_name'] = usr['attributes']['sn']
-                InetDAO.data['division'] = usr['attributes']['department']
-                InetDAO.data['role'] = usr['attributes']['title']
-                InetDAO.data['number'] = usr['attributes']['initials']
-                InetDAO.data['login_name'] = usr['attributes']['sAMAccountName']
+                empty_fild_list = []
+                if 'givenName' in usr['attributes']:
+                    InetDAO.data['first_name'] = usr['attributes']['givenName']
+                else:
+                    InetDAO.data['first_name'] = ''
+                    empty_fild_list.append('Имя')
+                if 'sn' in usr['attributes']:
+                    InetDAO.data['last_name'] = usr['attributes']['sn']
+                else:
+                    InetDAO.data['last_name'] = ''
+                    empty_fild_list.append('Фамилия')
+                if 'department' in usr['attributes']:
+                    InetDAO.data['division'] = usr['attributes']['department']
+                else:
+                    InetDAO.data['division'] = ''
+                    empty_fild_list.append('Подразделение')
+                if 'title' in usr['attributes']:
+                    InetDAO.data['role'] = usr['attributes']['title']
+                else:
+                    InetDAO.data['role'] = ''
+                    empty_fild_list.append('Должность')
+                if 'initials' in usr['attributes']:
+                    InetDAO.data['number'] = usr['attributes']['initials']
+                else:
+                    InetDAO.data['number'] = ''
+                    empty_fild_list.append('Табельный')
+                if 'sAMAccountName' in usr['attributes']:
+                    InetDAO.data['login_name'] = usr['attributes']['sAMAccountName']
+                else:
+                    InetDAO.data['login_name'] = ''
+                    empty_fild_list.append('Логин')
+                if 'userPrincipalName' in usr['attributes']:
+                    upn_list = usr['attributes']['userPrincipalName'].split('@')
+                    usr['attributes']['userPrincipalName'] = f'{upn_list[0]}@{settings.I_AD_DOMEN}'
+                else:
+                    usr['attributes'][
+                        'userPrincipalName'] = f"{usr['attributes']['sAMAccountName']}@{settings.I_AD_DOMEN}"
+
+                empty_fild = ', '.join(empty_fild_list)
+
+                if empty_fild:
+                    msg = f'ERROR: User {usr["dn"].split(",")[0][3:]} was not created, user have empty fild: {empty_fild}.'
+                    InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password'] = 'ERROR', msg, 'ERROR'
+                    result_dict = InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password']
+
+                    # loop = asyncio.get_event_loop()
+                    # loop.run_until_complete(InetDAO.add())
+
+                    InetDAO.postal()
+
+                    return result_dict
 
                 result = conn.add(dn=usr['dn'], object_class=OBJECT_CLASS, attributes=usr['attributes'])
                 if not result:
@@ -131,8 +184,8 @@ def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any] | dic
                     InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password'] = 'ERROR', msg, 'ERROR'
                     result_dict = InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password']
 
-                    loop = asyncio.get_event_loop()
-                    loop.run_until_complete(InetDAO.add())
+                    # loop = asyncio.get_event_loop()
+                    # loop.run_until_complete(InetDAO.add())
 
                     InetDAO.postal()
 
@@ -140,28 +193,33 @@ def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any] | dic
 
                 # unlock and set password
 
-                conn.extend.microsoft.unlock_account(user=usr['dn'])
                 new_pass = password_generator()
+
+                conn.extend.microsoft.unlock_account(user=usr['dn'])
+
+
                 conn.extend.microsoft.modify_password(user=usr['dn'],
-                                                      new_password=new_pass,
-                                                      old_password=None)
+                                                            new_password=new_pass + new_pass,
+                                                            old_password=None)
                 # Enable account - must happen after user password is set
-                enable_account = {"userAccountControl": (MODIFY_REPLACE, [544])}
+                enable_account = {"userAccountControl": (MODIFY_REPLACE, [512])}
                 conn.modify(usr['dn'], changes=enable_account)
                 # Add groups
-                gp = 'CN=intrfu,CN=Users,DC=RPZ,DC=TEST'
+                gp = settings.I_AD_GROUP
                 result_inet = ad_add_members_to_groups(conn, usr['dn'], gp)
                 result_local = trans_to_groups(usr['dn_local'])
+
+
                 msg = f"OK. User {usr['dn'].split(',')[0][3:]} with pass '{new_pass}' was created in division {usr['dn'].split(',')[1][3:]} and added to group: {gp.split(',')[0][3:]}."
                 InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password'] = 'OK', msg, new_pass
                 result_dict = InetDAO.data['status'], InetDAO.data['message'], InetDAO.data['i_password'], InetDAO.data[
                     'login_name']
 
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(InetDAO.add())
+                # loop = asyncio.get_event_loop()
+                # loop.run_until_complete(InetDAO.add())
 
                 InetDAO.postal()
-                mailto = f'{InetDAO.data["login_name"]}@rpz.local'
+                mailto = f'{InetDAO.data["login_name"]}@{settings.I_AD_DOMEN}'
                 InetDAO.postal(to=mailto)
 
                 InetDAO.keepass()
@@ -181,25 +239,33 @@ def get_smb_conn():
     return smb_conn
 
 
-def kee(smb_conn):
+def kee(smb_conn, title, username, password, description):
+    descrip = f'NEW+ \n {description}'
+    temp_path = settings.KEEPASS_TEMP_PATH
+    group_name = settings.KEEPASS_GROUP_NAME
+    prefix, suffix = settings.KEEPASS_DB.split('.')
+    with tempfile.NamedTemporaryFile(prefix=f'{prefix}', suffix=f'.{suffix}', dir=temp_path) as file_obj:
+        file_attr, old_size = smb_conn.retrieveFile(settings.SMB_SERVICE, settings.KEEPASS_URL, file_obj)
+        kee_path = file_obj.name
 
-    file_obj = tempfile.NamedTemporaryFile()
-    file_attr, file_size = smb_conn.retrieveFile(settings.SMB_SERVICE, settings.KEEPASS_URL, file_obj)
-    print(file_attr)
-    print(file_size)
-    print(file_obj.read())
+        with PyKeePass(kee_path, password=settings.KEEPASS_MASTER_KEY) as kp:
+            while kp.find_entries(title=title, first=True):
+                title = f'{title}_$'
+            group = kp.find_groups(name=group_name, first=True)
+            kp.add_entry(group, title=title, username=username, password=password, notes=descrip)
+            kp.save()
+            entry = kp.find_entries(title=title, first=True)
+        with open(kee_path, 'rb+') as kee_obj:
+            new_size = smb_conn.storeFile(settings.SMB_SERVICE, settings.KEEPASS_URL, kee_obj)
+    kee_dict = {'old_size': old_size, 'new_size': new_size, 'user': entry}
+
+    return kee_dict
 
 
-    file_obj.close()
-
-    # smb_conn = smbclient.SambaClient(server="settings.SMB_SRV", share="pass$",
-    #                             username='settings.SMB_USER', password='settings.SMB_PASS', domain='rpz.local')
-
-    # smb_conn = smbclient.register_session(server=settings.SMB_SRV, username=settings.SMB_USER, password=settings.SMB_PASS,
-    #                                  port=settings.SMB_PORT, auth_protocol='ntlm')
-    # smbclient.stat(r'\\rpz-srv-storage\pass$\test\file1.txt', port=settings.SMB_PORT)
-    # smbclient.stat(r'\\rpz-srv-arhive\storage3')
-
-    return True
-
+def scheduler_inet_user():
+    print('Start Inet User Create')
+    schedule.every(settings.SCHEDULE_TIME).minutes.do(create_i_ad_user)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 

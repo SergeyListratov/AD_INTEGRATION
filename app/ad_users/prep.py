@@ -13,7 +13,7 @@ from ldap3.extend.microsoft.removeMembersFromGroups import ad_remove_members_fro
 from exchangelib import DELEGATE, Account, Credentials
 
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
-LDAP_BASE_DN = 'DC=rpz,DC=local'
+LDAP_BASE_DN = settings.AD_BASE
 
 
 def ldap_conn():

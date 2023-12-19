@@ -1,4 +1,6 @@
 from sqlalchemy import insert, select
+
+from app.config import settings
 from app.dao.base import BaseDAO
 from app.keepas import to_kee, get_smb_conn
 from app.tasks.models import Inet
@@ -19,8 +21,8 @@ class InetDAO(BaseDAO):
             await session.commit()
 
     @classmethod
-    def postal(cls, to="OTS_ADM1@rpz.local"):
-        if to == "OTS_ADM1@rpz.local":
+    def postal(cls, to=settings.POST_ADM_GROUP):
+        if to == settings.POST_ADM_GROUP:
 
             sub = f"{cls.data['status']}! Регистрация {cls.data['last_name']} в сети интернет"
             text = (f" Регистрация пользователя: {cls.data['last_name']} в сети интернет.\n"
