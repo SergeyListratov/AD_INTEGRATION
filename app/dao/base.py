@@ -1,4 +1,4 @@
-from app.database import async_session_maker
+from app.database import async_session_maker, connection
 from sqlalchemy import select, insert
 
 
@@ -33,3 +33,10 @@ class BaseDAO:
             query = insert(cls.model).values(**date)
             await session.execute(query)
             await session.commit()
+
+    # @classmethod
+    # def no_async_add(cls, **date):
+    #     with connection as session:
+    #         query = insert(cls.model).values(**date)
+    #         session.execute(query)
+    #         session.commit()

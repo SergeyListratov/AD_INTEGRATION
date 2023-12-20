@@ -4,7 +4,7 @@ from app.config import settings
 from app.dao.base import BaseDAO
 from app.keepas import to_kee, get_smb_conn
 from app.tasks.models import Inet
-from app.database import async_session_maker
+from app.database import async_session_maker, connection
 from app.smpt import post
 
 
@@ -60,3 +60,9 @@ class InetDAO(BaseDAO):
 
         return result
 
+    @classmethod
+    def no_async_add(cls):
+        with connection as session:
+            query = insert(cls.model).values(**cls.data)
+            session.execute(query)
+            session.commit()

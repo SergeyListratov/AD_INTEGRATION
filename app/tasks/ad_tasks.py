@@ -170,7 +170,7 @@ def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any] | dic
 
                     # loop = asyncio.get_event_loop()
                     # loop.run_until_complete(InetDAO.add())
-
+                    InetDAO.no_async_add()
                     InetDAO.postal()
 
                     return result_dict
@@ -186,6 +186,7 @@ def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any] | dic
 
                     # loop = asyncio.get_event_loop()
                     # loop.run_until_complete(InetDAO.add())
+                    InetDAO.no_async_add()
 
                     InetDAO.postal()
 
@@ -217,6 +218,7 @@ def create_i_ad_user() -> tuple[Any, Any, Any] | tuple[Any, Any, Any, Any] | dic
 
                 # loop = asyncio.get_event_loop()
                 # loop.run_until_complete(InetDAO.add())
+                InetDAO.no_async_add()
 
                 InetDAO.postal()
                 mailto = f'{InetDAO.data["login_name"]}@{settings.I_AD_DOMEN}'
