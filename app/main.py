@@ -1,12 +1,8 @@
-from fastapi import FastAPI, Query, Depends
+from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
-
-# from starlette.middleware.cors import CORSMiddleware
-
 from app.api_users.router import router as router_api_users
 from app.ad_users.router import router as router_ad_users
 from app.tasks import ad_tasks
-
 from apscheduler.schedulers.background import BackgroundScheduler
 
 
