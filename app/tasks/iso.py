@@ -33,18 +33,3 @@ def encrypt_xor(message: str) -> str:
 def decrypt_xor(message_hex: str) -> str:
     message = bytes.fromhex(message_hex).decode('utf-8')
     return crypto_xor(message)
-
-
-if __name__ == '__main__':
-    # f = get_password_hash('bu')
-    # g = verify_password('bu', '$2b$12$Xef2ybFiN7nSMQzMGkY9Eu9TGL9rsEGwjzLKF48OxejnLiOXw/2F6')
-    # print(g)
-
-    key = "gH56!oi0"
-
-    encrypted = encrypt_xor('H7akjdfh(012)poijhadf')
-    print(encrypted)
-
-    print(decrypt_xor(encrypted))
-
-    print(decrypt_xor("2f7f545d4b0b0f584f780404081f06590d20545247"))

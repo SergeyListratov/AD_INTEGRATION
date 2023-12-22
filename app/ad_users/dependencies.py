@@ -222,7 +222,7 @@ def dismiss_ad_user(
     user = f'{first_name} {other_name} {last_name}'
     with ldap_conn() as conn:
         find_usr_list: Optional[list[dict]] = find_ad_users(first_name, other_name, last_name, number)
-        dism_password = 'Qwerty1234509876f'
+        dism_password = settings.DISM_PASS
         dism_unit = 'OU=Dismissed_users'
         if find_usr_list:
             for usr in find_usr_list:
@@ -269,7 +269,7 @@ c почтой пользовалеля для кадровой службы.
 def create_ad_user(
         first_name: str, other_name: str, last_name: str, number: str, division: str, role: str, action='creat'
 ) -> dict[str, str | Any]:
-    new_pass = 'Qwerty1'
+    new_pass = settings.NEW_PASS
     c_n = f'{first_name} {other_name} {last_name}'
     find_user = find_ad_users(first_name, other_name, last_name, number)
     init = any(map(lambda i: 'initials' in i, find_user))
@@ -283,7 +283,7 @@ def create_ad_user(
         user_ad_attr = {
             "displayName": c_n,
             "sAMAccountName": login,
-            "userPrincipalName": f'{login}@rpz.local',
+            "userPrincipalName": f'{login}@{settings.AD_DOMEN}',
             "name": c_n,
             "givenName": first_name,
             "sn": last_name,
@@ -475,8 +475,7 @@ def add_user_to_rol(d_n_user, role, conn):
 
 
 def set_role_descript(main, role, descr, conn):
-    # dn = f"CN={role},OU=Roles,OU={main},{LDAP_BASE_DN}"
-    dn = f"CN={role},OU=Roles,OU={main},OU=AO_RPZ,{LDAP_BASE_DN}"
+    dn = f"CN={role},OU=Roles,OU={main},OU={settings.OU_DEPARTMENT},{LDAP_BASE_DN}"
     set_descript = {'description': descr}
     result = conn.add(dn, 'Group', set_descript)
     print(f'set role + descript : {role}, {result}')

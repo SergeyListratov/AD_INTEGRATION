@@ -14,6 +14,7 @@ from exchangelib import DELEGATE, Account, Credentials
 
 OBJECT_CLASS = ['top', 'person', 'organizationalPerson', 'user']
 LDAP_BASE_DN = settings.AD_BASE
+PROJECT_PATH = '/home/project/AD_INTEGRATION/data/'
 
 
 def ldap_conn():
@@ -100,8 +101,8 @@ def del_sign(wrd: str) -> str:
 
 def get_infra_ou(main: str):
     return [
-        f"OU=Divisions,OU={main},DC=rpz,DC=local", f"OU=Roles,OU={main},DC=rpz,DC=local",
-        f"OU=New_users,OU={main},DC=rpz,DC=local", f"OU=Dismissed_users,OU={main},DC=rpz,DC=local"
+        f"OU=Divisions,OU={main},{settings.OU_DEPARTMENT},{LDAP_BASE_DN}", f"OU=Roles,OU={main},{settings.OU_DEPARTMENT},{LDAP_BASE_DN}",
+        f"OU=New_users,OU={main},{settings.OU_DEPARTMENT},{LDAP_BASE_DN}", f"OU=Dismissed_users,OU={main},{settings.OU_DEPARTMENT},{LDAP_BASE_DN}"
     ]
 
 
@@ -114,28 +115,28 @@ def set_main_descript(main, div, descr):
                 else:
                     result = conn.add(dn, 'organizationalUnit')
                 print(f'set main structure + descr : {result}')
-            dn = f"CN={div},OU=Divisions,OU={main},DC=rpz,DC=local"
+            dn = f"CN={div},OU=Divisions,OU={main},{settings.OU_DEPARTMENT},{LDAP_BASE_DN}"
             set_descript = {'description': descr}
             result = conn.add(dn, 'Group', set_descript)
             print(f'set div + descript : {div}, {result}')
 
         else:
-            dn = f"CN={div},OU=Divisions,OU={main},DC=rpz,DC=local"
+            dn = f"CN={div},OU=Divisions,OU={main},{settings.OU_DEPARTMENT},{LDAP_BASE_DN}"
             set_descript = {'description': descr}
             result = conn.add(dn, 'Group', set_descript)
             print(f'set div + descript : {div}, {result}')
 
 
 def file_to_file(file_in, file_out):
-    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
-        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+    with open(f'{PROJECT_PATH}{file_in}', 'r+', encoding='UTF-8') as file:
+        with open(f'{PROJECT_PATH}{file_out}', 'w+', encoding='UTF-8') as new_file:
             for st in file:
                 new_st = get_division(st)
                 new_file.write(new_st)
 
 
 def from_file_to_ad_prepare(file_in):
-    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
+    with open(f'{PROJECT_PATH}{file_in}', 'r+', encoding='UTF-8') as file:
         for st in file:
             main, div, descr = get_division(st.split(';')[0]), get_division(st.split(';')[1]), st.split(';')[2].rstrip(
                 '\n')
@@ -144,8 +145,8 @@ def from_file_to_ad_prepare(file_in):
 
 ###foo1 Подготовка AD создание групп и назначения прав для групп (Roles)
 def from_file_role_create(file_in, file_out):
-    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
-        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+    with open(f'{PROJECT_PATH}{file_in}', 'r+', encoding='UTF-8') as file:
+        with open(f'{PROJECT_PATH}{file_out}', 'w+', encoding='UTF-8') as new_file:
             with ldap_conn() as conn:
                 for st in file:
                     sts = st.split(';')
@@ -195,8 +196,8 @@ def from_file_role_create(file_in, file_out):
 
 ##!!!foo2 Подготовка AD реализация наследования Div -- Role -- User
 def from_file_role_security(file_in, file_out):
-    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as file:
-        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+    with open(f'{PROJECT_PATH}{file_in}', 'r+', encoding='UTF-8') as file:
+        with open(f'{PROJECT_PATH}{file_out}', 'w+', encoding='UTF-8') as new_file:
             with ldap_conn() as conn:
                 for st in file:
                     sts = st.split(';')
@@ -250,7 +251,7 @@ def add_user_to_rol(d_n_user, role, conn):
 
 
 def set_role_descript(main, role, descr, conn):
-    dn = f"CN={role},OU=Roles,OU={main},DC=rpz,DC=local"
+    dn = f"CN={role},OU=Roles,OU={main},{settings.OU_DEPARTMENT}{LDAP_BASE_DN}"
     set_descript = {'description': descr}
     result = conn.add(dn, 'Group', set_descript)
     print(f'set role + descript : {role}, {result}')
@@ -316,9 +317,9 @@ def create_mailbox():
 
 
 def file_prep(file1_in, file2_in, file_out):
-    with open(f'/home/project/AD_INTEGRATION/data/{file1_in}', 'r+', encoding='UTF-8') as all:
-        with open(f'/home/project/AD_INTEGRATION/data/{file2_in}', 'r+', encoding='UTF-8') as set:
-            with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+    with open(f'{PROJECT_PATH}{file1_in}', 'r+', encoding='UTF-8') as all:
+        with open(f'{PROJECT_PATH}{file2_in}', 'r+', encoding='UTF-8') as set:
+            with open(f'{PROJECT_PATH}{file_out}', 'w+', encoding='UTF-8') as new_file:
                 s = set.read().split()
                 for single in all:
                     n = single.split(';')[3]
@@ -327,7 +328,7 @@ def file_prep(file1_in, file2_in, file_out):
 
 
 def file_prep_role(file_in):
-    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as all:
+    with open(f'{PROJECT_PATH}{file_in}', 'r+', encoding='UTF-8') as all:
         for single in all:
             division = single.split(';')[0]
             role = single.split(';')[1]
@@ -336,8 +337,8 @@ def file_prep_role(file_in):
 
 
 def del_sign_group_div(file_in: str, ldap_base_dn: str = LDAP_BASE_DN, file_out='rem_all.txt') -> bool:
-    with open(f'/home/project/AD_INTEGRATION/data/{file_in}', 'r+', encoding='UTF-8') as all:
-        with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+    with open(f'{PROJECT_PATH}{file_in}', 'r+', encoding='UTF-8') as all:
+        with open(f'{PROJECT_PATH}{file_out}', 'w+', encoding='UTF-8') as new_file:
 
             for single in all:
                 division = single.split(';')[0]
@@ -411,7 +412,7 @@ def from_list_to_gp(member_lst: list, dn_group):
 
 # Возвращение прав пользователям напрямую, для групп рассылки #######
 def search_sign(group_name: str, file_out='1.txt') -> dict:
-    with open(f'/home/project/AD_INTEGRATION/data/{file_out}', 'w+', encoding='UTF-8') as new_file:
+    with open(f'{PROJECT_PATH}{file_out}', 'w+', encoding='UTF-8') as new_file:
         gp_dict = search_gp_user(group_name)
         gp_dn = gp_dict['dn']
         roles_list = gp_dict['member']
