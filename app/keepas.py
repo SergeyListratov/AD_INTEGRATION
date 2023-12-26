@@ -18,8 +18,10 @@ def get_smb_conn():
 def to_kee(smb_conn, title, username, password, description):
 
     descript = f'NEW+ \n {description}'
-    temp_path = '/home/project/AD_INTEGRATION/data'
-    group_name = 'Терминальный интернет'
+    temp_path = settings.KEEPASS_TEMP_PATH
+    # temp_path = '/home/project/AD_INTEGRATION/data' ### для локальной разработки
+    group_name = settings.KEEPASS_GROUP_NAME
+    # group_name = 'Терминальный интернет'
     with tempfile.NamedTemporaryFile(prefix='InetUser', suffix='.kdbx', dir=temp_path) as file_obj:
         file_attr, old_size = smb_conn.retrieveFile(settings.SMB_SERVICE, settings.KEEPASS_URL, file_obj)
         kee_path = file_obj.name
