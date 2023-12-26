@@ -42,9 +42,9 @@ if __name__ == '__main__':
 
     key = "gH56!oi0"
 
-    encrypted = encrypt_xor('H7akjdfh(012)poijhadf')
+    encrypted = encrypt_xor('pg33014')
     print(encrypted)
 
     print(decrypt_xor(encrypted))
 
-    print(decrypt_xor("2f7f545d4b0b0f584f780404081f06590d20545247"))
+    print(decrypt_xor("172f0605115e5d"))
