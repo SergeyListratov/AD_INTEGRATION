@@ -41,6 +41,9 @@ services:
    links:
     - ad_api
     #- pgadmin
+
+   restart: unless-stopped
+
    networks:
       net:
         ipv4_address: 11.6.1.5
