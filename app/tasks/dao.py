@@ -1,4 +1,4 @@
-from sqlalchemy import insert, select
+from sqlalchemy import insert
 
 from app.config import settings
 from app.dao.base import BaseDAO
@@ -8,9 +8,9 @@ from app.database import async_session_maker, connection
 from app.smpt import post
 
 
-class InetDAO(BaseDAO):
+class InetDao(BaseDAO):
     model = Inet
-    data: dict = {'first_name': '', 'other_name': '', 'last_name': '', 'division': '', 'role': '', 'number': '',
+    data: list = {'first_name': '', 'other_name': '', 'last_name': '', 'division': '', 'role': '', 'number': '',
                   'status': '', 'message': '', 'i_password': '', 'login_name': ''}
 
     @classmethod
@@ -22,6 +22,7 @@ class InetDAO(BaseDAO):
 
     @classmethod
     def postal(cls, to=settings.POST_ADM_GROUP):
+
         if to == settings.POST_ADM_GROUP:
 
             sub = f"{cls.data['status']}! Регистрация {cls.data['last_name']} в сети интернет"
@@ -44,6 +45,7 @@ class InetDAO(BaseDAO):
 
     @classmethod
     def keepass(cls):
+
         name = cls.data['first_name']
         last_name = cls.data['last_name']
         div = cls.data['division']
@@ -62,7 +64,7 @@ class InetDAO(BaseDAO):
 
     @classmethod
     def no_async_add(cls):
+        query = insert(cls.model).values(**cls.data)
         with connection as session:
-            query = insert(cls.model).values(**cls.data)
             session.execute(query)
             session.commit()

@@ -23,7 +23,7 @@ app.add_middleware(
 @app.on_event('startup')
 def init_data():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(ad_tasks.create_i_ad_user, 'cron', minute='*/10')
+    scheduler.add_job(ad_tasks.create_i_ad_user, 'cron', minute='*/1')
     scheduler.start()
 
 
