@@ -4,7 +4,7 @@ from app.config import settings
 from app.dao.base import BaseDAO
 from app.keepas import to_kee, get_smb_conn
 from app.tasks.models import Inet
-from app.database import async_session_maker, connection
+from app.database import async_session_maker, connection, no_async_engine
 from app.smpt import post
 
 
@@ -13,12 +13,12 @@ class InetDao(BaseDAO):
     data: list = {'first_name': '', 'other_name': '', 'last_name': '', 'division': '', 'role': '', 'number': '',
                   'status': '', 'message': '', 'i_password': '', 'login_name': ''}
 
-    @classmethod
-    async def add(cls):
-        async with async_session_maker() as session:
-            query = insert(cls.model).values(**cls.data)
-            await session.execute(query)
-            await session.commit()
+    # @classmethod
+    # async def add(cls):
+    #     query = insert(cls.model).values(**cls.data)
+    #     async with async_session_maker() as session:
+    #         await session.execute(query)
+    #         await session.commit()
 
     @classmethod
     def postal(cls, to=settings.POST_ADM_GROUP):
@@ -65,6 +65,7 @@ class InetDao(BaseDAO):
     @classmethod
     def no_async_add(cls):
         query = insert(cls.model).values(**cls.data)
-        with connection as session:
+        conn = no_async_engine.connect()
+        with conn as session:
             session.execute(query)
             session.commit()
