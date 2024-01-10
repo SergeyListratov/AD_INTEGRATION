@@ -1,0 +1,58 @@
+DB_HOST= # ip address
+DB_PORT= # 5432
+DB_USER= # Usernfvt
+H_DB_PASS= # Hashed password
+DB_NAME= # db name
+
+H_SECRET_KEY=# Hashed key
+ALG=HS256
+
+AD_LDAP_CON= # ldap://domen.ru:389
+AD_LDAP_CONN= # ldap://190.34.34.34:389
+AD_USER= # username for AD full: user@domen.ru
+H_AD_PASS= # hashed password for AD
+AD_BASE= # 'DC=domen,DC=ru'
+AD_DOMEN= # domen.ru
+OU_DEPARTMENT= # master ou department name
+AD_SERVER_IP= # ip ad domen controller
+AD_USR= # username for AD: user
+AD_GP_IN= # 'CN=Internet,OU=Access,OU=Groups,DC=domen,DC=ru'
+AD_GP_OUT= # 'CN=To_internet,OU=Access,OU=Groups,DC=domen,DC=ru'
+H_DISM_PASS = # Hashed password
+NEW_PASS = # mew password for created user
+
+I_AD_LDAP_CON=
+I_AD_LDAP_CONN=
+I_AD_USER=
+H_I_AD_PASS=
+I_AD_BASE='
+I_AD_DOMEN=
+I_AD_SERVER_IP=
+I_AD_USR=
+I_AD_GROUP='CN=gp,CN=Users,DC=domeninternet,DC=ru'
+I_AD_OU='OU=USERInternal'
+
+POST_USER=bot1@domen.ru
+H_POST_USER_PASS=
+POST_SERVER=mail.domen.ru
+POST_ADM_GROUP=ADM@domen.ru
+
+SMB_USER=
+H_SMB_PASS=
+SMB_SRV=
+SMB_IP=
+SMB_PORT=139
+SMB_SERVICE=
+SMB_DOMAIN=
+
+KEEPASS_PATH=
+KEEPASS_USER=
+H_KEEPASS_PASS=
+KEEPASS_DB=
+H_KEEPASS_MASTER_KEY=
+KEEPASS_IP=
+KEEPASS_TEMP_PATH=
+KEEPASS_GROUP_NAME =
+
+
+SCHEDULE_TIME=1

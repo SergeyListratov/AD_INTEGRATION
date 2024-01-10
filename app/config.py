@@ -1,14 +1,25 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from app.tasks.iso import decrypt_xor
 from pydantic import validator
 
 
 class Settings(BaseSettings):
+    MODE: Literal["DEV", "TEST", "PROD"]
+
     DB_HOST: str
     DB_PORT: int
     DB_USER: str
     H_DB_PASS: str
     DB_NAME: str
+
+    TEST_DB_HOST: str
+    TEST_DB_PORT: int
+    TEST_DB_USER: str
+    TEST_H_DB_PASS: str
+    TEST_DB_NAME: str
 
     H_SECRET_KEY: str
     ALG: str
@@ -61,6 +72,7 @@ class Settings(BaseSettings):
     KEEPASS_IP: str
     KEEPASS_TEMP_PATH: str
     KEEPASS_GROUP_NAME: str
+    TEST_KEEPASS_DB: str
 
     SCHEDULE_TIME: int
 
@@ -73,12 +85,28 @@ class Settings(BaseSettings):
         return f'postgresql+psycopg2://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}'
 
     @property
+    def TEST_DATABASE_URL(self):
+        return f'postgresql+asyncpg://{self.TEST_DB_USER}:{self.TEST_DB_PASS}@{self.TEST_DB_HOST}:{self.TEST_DB_PORT}/{self.TEST_DB_NAME}'
+
+    @property
+    def TEST_NO_ASYNC_DATABASE_URL(self):
+        return f'postgresql+psycopg2://{self.TEST_DB_USER}:{self.TEST_DB_PASS}@{self.TEST_DB_HOST}:{self.TEST_DB_PORT}/{self.TEST_DB_NAME}'
+
+    @property
     def KEEPASS_URL(self):
         return f'{self.KEEPASS_PATH}{self.KEEPASS_DB}'
 
     @property
+    def TEST_KEEPASS_URL(self):
+        return f'{self.KEEPASS_PATH}{self.TEST_KEEPASS_DB}'
+
+    @property
     def DB_PASS(self):
         return decrypt_xor(self.H_DB_PASS)
+
+    @property
+    def TEST_DB_PASS(self):
+        return decrypt_xor(self.TEST_H_DB_PASS)
 
     @property
     def AD_PASS(self):

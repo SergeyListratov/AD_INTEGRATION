@@ -22,8 +22,16 @@ def to_kee(smb_conn, title, username, password, description):
     # temp_path = '/home/project/AD_INTEGRATION/data' ### для локальной разработки
     group_name = settings.KEEPASS_GROUP_NAME
     # group_name = 'Терминальный интернет'
+
+    if settings.MODE == "TEST":
+        keepass_url = settings.TEST_KEEPASS_URL
+    else:
+        keepass_url = settings.KEEPASS_URL
+
+
+
     with tempfile.NamedTemporaryFile(prefix='InetUser', suffix='.kdbx', dir=temp_path) as file_obj:
-        file_attr, old_size = smb_conn.retrieveFile(settings.SMB_SERVICE, settings.KEEPASS_URL, file_obj)
+        file_attr, old_size = smb_conn.retrieveFile(settings.SMB_SERVICE, keepass_url, file_obj)
         kee_path = file_obj.name
 
         with PyKeePass(kee_path, password=settings.KEEPASS_MASTER_KEY) as kp:
@@ -34,7 +42,7 @@ def to_kee(smb_conn, title, username, password, description):
             kp.save()
             entry = kp.find_entries(title=title, first=True)
         with open(kee_path, 'rb+') as kee_obj:
-            new_size = smb_conn.storeFile(settings.SMB_SERVICE, settings.KEEPASS_URL, kee_obj)
+            new_size = smb_conn.storeFile(settings.SMB_SERVICE, keepass_url, kee_obj)
     kee_dict = {'old_size': old_size, 'new_size': new_size, 'user': entry}
 
     return kee_dict

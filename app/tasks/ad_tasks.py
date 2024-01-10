@@ -229,7 +229,7 @@ def create_i_ad_one_user(usr: dict) -> dict[str, Any]:
 
                 inet_dao.no_async_add()
                 inet_dao.postal()
-                mailto = f'{inet_dao.data["login_name"]}@{settings.I_AD_DOMEN}'
+                mailto = f'{inet_dao.data["login_name"]}@{settings.AD_DOMEN}'
                 inet_dao.postal(to=mailto)
                 inet_dao.keepass()
 
