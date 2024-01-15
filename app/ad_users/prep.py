@@ -419,7 +419,7 @@ def search_sign(group_name: str, file_out='1.txt') -> dict:
         for gp in roles_list:
             if 'Roles' in gp:
                 cn = gp.split(',')[0][3:]
-                usr_dict = (search_gp_user(cn))
+                usr_dict = search_gp_user(cn)
                 # result = from_list_to_gp(usr_dict['member'], gp_dn)
                 with ldap_conn() as conn:
                     for dn_user in usr_dict['member']:

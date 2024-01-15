@@ -1,6 +1,8 @@
-DB_HOST= # ip address
+###DB_HOST=192.168.1.3### Example
+
+DB_HOST= # db ip address
 DB_PORT= # 5432
-DB_USER= # Usernfvt
+DB_USER= # Username
 H_DB_PASS= # Hashed password
 DB_NAME= # db name
 
@@ -9,50 +11,51 @@ ALG=HS256
 
 AD_LDAP_CON= # ldap://domen.ru:389
 AD_LDAP_CONN= # ldap://190.34.34.34:389
-AD_USER= # username for AD full: user@domen.ru
-H_AD_PASS= # hashed password for AD
+AD_USER= # username for AD (user creation) full: user@domen.ru
+H_AD_PASS= # hashed password for AD_USER
 AD_BASE= # 'DC=domen,DC=ru'
 AD_DOMEN= # domen.ru
 OU_DEPARTMENT= # master ou department name
-AD_SERVER_IP= # ip ad domen controller
-AD_USR= # username for AD: user
-AD_GP_IN= # 'CN=Internet,OU=Access,OU=Groups,DC=domen,DC=ru'
-AD_GP_OUT= # 'CN=To_internet,OU=Access,OU=Groups,DC=domen,DC=ru'
+AD_SERVER_IP= # ip AD domen controller
+AD_USR= # username for AD (user creation) short: : user
+AD_GP_IN= # 'CN=Internet,OU=Access,OU=Groups,DC=domen,DC=ru' Group for created user in other domen (I_AD_DOMEN)
+AD_GP_OUT= # 'CN=To_internet,OU=Access,OU=Groups,DC=domen,DC=ru' Group for create user in other domen (I_AD_DOMEN)
 H_DISM_PASS = # Hashed password
-NEW_PASS = # mew password for created user
+NEW_PASS = # mew password for created user (I_AD_DOMEN)
 
-I_AD_LDAP_CON=
-I_AD_LDAP_CONN=
-I_AD_USER=
-H_I_AD_PASS=
-I_AD_BASE='
-I_AD_DOMEN=
-I_AD_SERVER_IP=
-I_AD_USR=
-I_AD_GROUP='CN=gp,CN=Users,DC=domeninternet,DC=ru'
-I_AD_OU='OU=USERInternal'
+I_AD_LDAP_CON= # ldap://i_domen.ru:389
+I_AD_LDAP_CONN= # ldap://192.168.1.2:389
+I_AD_USER= # user@i_domen.ru
+H_I_AD_PASS= # hashed password for I_AD_USER
+I_AD_BASE= # 'DC=domen,DC=ru'
+I_AD_DOMEN= # domen.ru
+I_AD_SERVER_IP= # # 192.168.1.5
+I_AD_USR= # user
+I_AD_GROUP= # 'CN=intrfu,CN=Users,DC=domen,DC=ru' Group for created user in domen (I_AD_DOMEN)
+I_AD_OU= # 'OU=USERInternal' # master ou department name
 
-POST_USER=bot1@domen.ru
-H_POST_USER_PASS=
-POST_SERVER=mail.domen.ru
-POST_ADM_GROUP=ADM@domen.ru
+POST_USER= # post@domen.ru mailbox for notification
+H_POST_USER_PASS= # dfderytewrty356634565346 Hashed password for mailbox
+POST_SERVER= # post.domen.ru maol server name
+POST_ADM_GROUP= # gp1@domen.ru group for user mail notification
 
-SMB_USER=
-H_SMB_PASS=
-SMB_SRV=
-SMB_IP=
-SMB_PORT=139
-SMB_SERVICE=
-SMB_DOMAIN=
+SMB_USER= # smb_user user for connect to SMB shares
+H_SMB_PASS= # 541194 SMB hashed password
+SMB_SRV= # storage smb shared cmb name
+SMB_IP= # 192.168.1.10
+SMB_PORT= # 139
+SMB_SERVICE= # smb service name
+SMB_DOMAIN= # domen.ru
 
 KEEPASS_PATH=
-KEEPASS_USER=
-H_KEEPASS_PASS=
-KEEPASS_DB=
-H_KEEPASS_MASTER_KEY=
-KEEPASS_IP=
-KEEPASS_TEMP_PATH=
-KEEPASS_GROUP_NAME =
+KEEPASS_USER= # kee@domen.ru
+H_KEEPASS_PASS= # 34253452fg353545 hashed password
+KEEPASS_DB= # db_name.kdbx
+H_KEEPASS_MASTER_KEY= # 09485019384uoiqwuetroiq hashed master key for keepass
+KEEPASS_IP= # 192.168.1.10
+KEEPASS_TEMP_PATH= # '/ad_api/data' folder for temporary use
+KEEPASS_GROUP_NAME = # 'gp_keepass'
+TEST_KEEPASS_DB= # test_db_name.kdbx db for use in tests
 
 
-SCHEDULE_TIME=1
+SCHEDULE_TIME=10 period for tasks start
